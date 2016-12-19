@@ -20,7 +20,6 @@ DAEMON_CONF=/soft/warehouse-apps-1.0/Manage-RDR/conf/$DAEMON_NAME.conf
 DAEMON_OPTS="-l info -c $DAEMON_CONF"
 
 # This next line determines what user the script runs as.
-# Root generally not recommended but necessary if you are using the Raspberry Pi GPIO from Python.
 DAEMON_USER=software
 
 . /etc/init.d/functions
@@ -59,11 +58,20 @@ do_stop () {
     fi
     echo rc=$?
 }
+do_debug () {
+    echo -n "Debugging: $PYTHON $DAEMON_BIN $@ $DAEMON_OPTS"
+    $PYTHON $DAEMON_BIN $@ $DAEMON_OPTS
+    RETVAL=$?
+}
 
 case "$1" in
 
     start|stop)
         do_${1}
+        ;;
+
+    debug)
+        do_debug ${@:2}
         ;;
 
     restart|reload|force-reload)
