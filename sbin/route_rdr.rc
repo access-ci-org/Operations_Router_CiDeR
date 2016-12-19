@@ -52,7 +52,7 @@ do_stop () {
         $PYTHON $DAEMON_BIN stop $DAEMON_OPTS
         RETVAL=$?
     else
-	echo "Only root or software should run $DAEMON_BIN"
+        echo "Only root or software should run $DAEMON_BIN"
         RETVAL=99
     fi
 }
