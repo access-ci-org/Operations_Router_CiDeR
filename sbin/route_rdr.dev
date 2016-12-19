@@ -1,0 +1,5 @@
+#!/bin/bash
+
+export DJANGO_CONF=/Users/navarro/warehouse-1.0/conf/settings_jp1.conf
+export PYTHONPATH=/Users/navarro/svn/xsede/sdi/source/info.warehouse/trunk/apps:/Users/navarro/svn/xsede/sdi/source/info.warehouse/trunk/django_xsede_warehouse
+python /Users/navarro/svn/xsede/sdi/source/info.warehouse/trunk/apps/RouteRDR/route_rdr.py ${@:1}
