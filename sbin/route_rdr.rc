@@ -27,32 +27,32 @@ DAEMON_USER=software
 PYTHON=/soft/python-2.7.13-1/bin/python
 export LD_LIBRARY_PATH=/soft/python-2.7.13-1/lib
 export PYTHONPATH=$DAEMON_DIR/lib:/soft/warehouse-1.0/PROD/django_xsede_warehouse
-export DJANGO_CONF=/soft/warehouse-apps-1.0/Manage-RDR/conf/settings_info_router.conf
+export DJANGO_CONF=/soft/warehouse-apps-1.0/Manage-RDR/conf/django_xsede_warehouse.conf
 export DJANGO_SETTINGS_MODULE=xsede_warehouse.settings
 
 do_start () {
     echo -n "Starting $DAEMON_NAME:"
     if [ `id -u` = 0 ] ; then
-        su software -s /bin/sh -c "$PYTHON $DAEMON_BIN start $DAEMON_OPTS"
+        su $DAEMON_USER -s /bin/sh -c "$PYTHON $DAEMON_BIN start $DAEMON_OPTS"
         RETVAL=$?
-    elif [ `id -u` = `id -u software` ] ; then
+    elif [ `id -u` = `id -u $DAEMON_USER` ] ; then
         $PYTHON $DAEMON_BIN start $DAEMON_OPTS
         RETVAL=$?
     else
-        echo "Only root or software should run $DAEMON_BIN"
+        echo "Only root or $DAEMON_USER should run $DAEMON_BIN"
         RETVAL=99
     fi
 }
 do_stop () {
     echo -n "Stopping $DAEMON_NAME:"
     if [ `id -u` = 0 ] ; then
-        su software -s /bin/sh -c "$PYTHON $DAEMON_BIN stop $DAEMON_OPTS"
+        su $DAEMON_USER -s /bin/sh -c "$PYTHON $DAEMON_BIN stop $DAEMON_OPTS"
         RETVAL=$?
-    elif [ `id -u` = `id -u software` ] ; then
+    elif [ `id -u` = `id -u $DAEMON_USER` ] ; then
         $PYTHON $DAEMON_BIN stop $DAEMON_OPTS
         RETVAL=$?
     else
-        echo "Only root or software should run $DAEMON_BIN"
+        echo "Only root or $DAEMON_USER should run $DAEMON_BIN"
         RETVAL=99
     fi
 }

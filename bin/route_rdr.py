@@ -303,7 +303,7 @@ class HandleRDR():
                     'storage_resources':   'storage',
                 }
 
-        self.cur = {}   # Resources currentlyin database
+        self.cur = {}   # Resources currently in database
         self.new = {}   # New resources in document
         for item in RDRResource.objects.all():
             self.cur[item.rdr_resource_id] = item
