@@ -2,8 +2,8 @@
     "DESTINATION": "warehouse",
     "RDR_INFO_URL": "https://rdr.xsede.org/xsede-api/provider/rdr/v1/resources",
     "RDR_LAST_URL": "https://rdr.xsede.org/xsede-api/provider/rdr/v1/resources/last_update",
-    "LOG_FILE": "/soft/warehouse-1.0/run/route_rdr.log",
+    "LOG_FILE": "/soft/warehouse-apps-1.0/Manage-RDR/var/route_rdr.log",
     "LOG_LEVEL": "warning",
-    "RUN_DIR": "/soft/warehouse-1.0/run",
-    "PID_FILE": "/soft/warehouse-1.0/run/route_rdr.pid"
+    "RUN_DIR": "/soft/warehouse-apps-1.0/Manage-RDR/var",
+    "PID_FILE": "/soft/warehouse-apps-1.0/Manage-RDR/var/route_rdr.pid"
 }
