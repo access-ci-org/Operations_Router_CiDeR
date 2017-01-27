@@ -24,8 +24,8 @@ DAEMON_USER=software
 
 . /etc/init.d/functions
 
-PYTHON=/soft/python-2.7.13-1/bin/python
-export LD_LIBRARY_PATH=/soft/python-2.7.13-1/lib
+PYTHON=/soft/python-2.7.13-2/bin/python
+export LD_LIBRARY_PATH=/soft/python-2.7.13-2/lib
 export PYTHONPATH=$DAEMON_DIR/lib:/soft/warehouse-1.0/PROD/django_xsede_warehouse
 export DJANGO_CONF=/soft/warehouse-apps-1.0/Manage-RDR/conf/django_xsede_warehouse.conf
 export DJANGO_SETTINGS_MODULE=xsede_warehouse.settings
