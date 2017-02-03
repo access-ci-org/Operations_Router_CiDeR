@@ -337,7 +337,7 @@ class HandleRDR():
             for attrib in self.have_column:
                 other_attributes.pop(attrib, None)
 
-            latest_status = self.latest_status(p_res['current_statuses'])
+            p_latest_status = self.latest_status(p_res['current_statuses'])
             try:
                 model = RDRResource(rdr_resource_id=p_res['resource_id'],
                                     info_resourceid=p_res['info_resourceid'],
@@ -347,9 +347,9 @@ class HandleRDR():
                                     resource_description=p_res['resource_description'],
                                     resource_status=p_res['resource_status'],
                                     current_statuses=', '.join(p_res['current_statuses']),
-                                    latest_status=latest_status,
-                                    latest_status_begin=self.latest_status_date(p_res['resource_status'], latest_status, 'begin'),
-                                    latest_status_end=self.latest_status_date(p_res['resource_status'], latest_status, 'end'),
+                                    latest_status=p_latest_status,
+                                    latest_status_begin=self.latest_status_date(p_res['resource_status'], p_latest_status, 'begin'),
+                                    latest_status_end=self.latest_status_date(p_res['resource_status'], p_latest_status, 'end'),
                                     parent_resource=None,
                                     recommended_use=None,
                                     access_description=None,
@@ -373,27 +373,34 @@ class HandleRDR():
                               'resource_descriptive_name', 'resource_description', 'access_description',
                               'recommended_use', 'resource_status', 'current_statuses', 'updated_at']:
                         other_attributes.pop(attrib, None)
-                    model = RDRResource(rdr_resource_id=s_res[id_lookup[subtype]],
-                                        info_resourceid=s_res['info_resourceid'],
-                                        info_siteid=s_res['info_resourceid'][s_res['info_resourceid'].find('.')+1:],
-                                        rdr_type=type_lookup[subtype],
-                                        resource_descriptive_name=s_res['resource_descriptive_name'],
-                                        resource_description=s_res['resource_description'],
-                                        resource_status=s_res['resource_status'],
-                                        current_statuses=', '.join(s_res['current_statuses']),
-                                        latest_status=self.latest_status(s_res['current_statuses']),
-                                        parent_resource=s_res['parent_resource']['resource_id'],
-                                        recommended_use=s_res['recommended_use'],
-                                        access_description=s_res['access_description'],
-                                        project_affiliation=s_res.get('project_affiliation', p_res['project_affiliation']),
-                                        provider_level=s_res.get('provider_level', p_res['provider_level']),
-                                        other_attributes=other_attributes,
-                                        updated_at=s_res['updated_at'],
-                                        )
-                    model.save()
-                    self.logger.debug(' Sub ID={}, ResourceID={}, Type={}'.format(s_res[id_lookup[subtype]], s_res['parent_resource']['info_resourceid'], type_lookup[subtype]))
-                    self.new[s_res[id_lookup[subtype]]]=model
-                    self.stats['Update'] += 1
+                    s_latest_status = self.latest_status(s_res['current_statuses'])
+                    try:
+                        model = RDRResource(rdr_resource_id=s_res[id_lookup[subtype]],
+                                            info_resourceid=s_res['info_resourceid'],
+                                            info_siteid=s_res['info_resourceid'][s_res['info_resourceid'].find('.')+1:],
+                                            rdr_type=type_lookup[subtype],
+                                            resource_descriptive_name=s_res['resource_descriptive_name'],
+                                            resource_description=s_res['resource_description'],
+                                            resource_status=s_res['resource_status'],
+                                            current_statuses=', '.join(s_res['current_statuses']),
+                                            latest_status=s_latest_status,
+                                            latest_status_begin=self.latest_status_date(s_res['resource_status'], s_latest_status, 'begin'),
+                                            latest_status_end=self.latest_status_date(s_res['resource_status'], s_latest_status, 'end'),
+                                            parent_resource=s_res['parent_resource']['resource_id'],
+                                            recommended_use=s_res['recommended_use'],
+                                            access_description=s_res['access_description'],
+                                            project_affiliation=s_res.get('project_affiliation', p_res['project_affiliation']),
+                                            provider_level=s_res.get('provider_level', p_res['provider_level']),
+                                            other_attributes=other_attributes,
+                                            updated_at=s_res['updated_at'],
+                                            )
+                        model.save()
+                        self.logger.debug(' Sub ID={}, ResourceID={}, Type={}'.format(s_res[id_lookup[subtype]], s_res['parent_resource']['info_resourceid'], type_lookup[subtype]))
+                        self.new[s_res[id_lookup[subtype]]]=model
+                        self.stats['Update'] += 1
+                    except (DataError, IntegrityError) as e:
+                        self.logger.error('{} saving resource_id={} ({}): {}'.format(type(e).__name__, s_res[id_lookup[subtype]], s_res['info_resourceid'], e.message))
+                        return(0)
 
         for id in self.cur:
             if id not in self.new:
