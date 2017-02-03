@@ -337,9 +337,6 @@ class HandleRDR():
             for attrib in self.have_column:
                 other_attributes.pop(attrib, None)
 
-            if p_res['resource_id'] == 38:
-                pdb.set_trace()
-
             latest_status = self.latest_status(p_res['current_statuses'])
             try:
                 model = RDRResource(rdr_resource_id=p_res['resource_id'],
