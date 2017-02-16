@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 # Process RDR2 information from a source (http, https, file) to a destination (analyze display, file, warehouse)
+# Can also subscribe from AMQP
 #
 # TODO:
 #  ...
@@ -25,6 +26,7 @@ django.setup()
 from django.db import DataError, IntegrityError
 from django.utils.dateparse import parse_datetime
 from rdr_db.models import *
+from processing_status.process import ProcessingActivity
 
 from daemon import runner
 import pdb
@@ -64,9 +66,9 @@ class HandleRDR():
         parser.add_argument('daemon_action', nargs='?', choices=('start', 'stop', 'restart'), \
                             help='{start, stop, restart} daemon')
         parser.add_argument('-s', '--source', action='store', dest='src', \
-                            help='Messages source {amqp, file, http[s]} (default=file)')
-#        parser.add_argument('-s', '--source', action='store', dest='src', nargs='+', \
-#                            help='Messages source {amqp, file, http[s]} (default=file)')
+                            help='Messages source {file, http[s]} (default=file)')
+#        parser.add_argument('-a', '--subscribe', action='store', dest='sub', \
+#                            help='Messages subscribe from AMQP')
         parser.add_argument('-d', '--destination', action='store', dest='dest', \
                             help='Message destination {file, analyze, or warehouse} (default=analyze)')
         parser.add_argument('-l', '--log', action='store', \
@@ -118,11 +120,9 @@ class HandleRDR():
         self.logger.addHandler(self.handler)
 
         # Verify arguments and parse compound arguments
-#        if 'src' not in self.args or not self.args.src: # Tests for None and empty ''
         if not getattr(self.args, 'src', None): # Tests for None and empty ''
             if 'RDR_INFO_URL' in self.config:
                 self.args.src = self.config['RDR_INFO_URL']
-#        if 'src' not in self.args or not self.args.src:
         if not getattr(self.args, 'src', None): # Tests for None and empty ''
             self.args.src = default_file
         idx = self.args.src.find(':')
@@ -140,11 +140,9 @@ class HandleRDR():
             self.src['path'] = self.src['path'][2:]
         self.src['uri'] = self.args.src
 
-#        if 'dest' not in self.args or not self.args.dest:
         if not getattr(self.args, 'dest', None): # Tests for None and empty ''
             if 'DESTINATION' in self.config:
                 self.args.dest = self.config['DESTINATION']
-#        if 'dest' not in self.args or not self.args.dest:
         if not getattr(self.args, 'dest', None): # Tests for None and empty ''
             self.args.dest = 'analyze'
         idx = self.args.dest.find(':')
@@ -298,9 +296,10 @@ class HandleRDR():
 
     def Warehouse_RDR(self, rdr_obj):
         if 'resources' not in rdr_obj:
-            self.logger.error('RDR JSON response is missing a \'resources\' element')
             self.stats['Skip'] += 1
-            return(None)
+            msg = 'RDR JSON response is missing a \'resources\' element'
+            self.logger.error(msg)
+            return(False, msg)
 
         id_lookup = {'compute_resources':   'compute_resource_id',
                     'other_resources':     'other_resource_id',
@@ -363,8 +362,9 @@ class HandleRDR():
                 self.new[p_res['resource_id']]=model
                 self.stats['Update'] += 1
             except (DataError, IntegrityError) as e:
-                self.logger.error('{} saving resource_id={} ({}): {}'.format(type(e).__name__, p_res['resource_id'], p_res['info_resourceid'], e.message))
-                return(0)
+                msg = '{} saving resource_id={} ({}): {}'.format(type(e).__name__, p_res['resource_id'], p_res['info_resourceid'], e.message)
+                self.logger.error(msg)
+                return(False, msg)
 
             for subtype in self.sub:
                 for s_res in self.sub[subtype]:
@@ -399,8 +399,9 @@ class HandleRDR():
                         self.new[s_res[id_lookup[subtype]]]=model
                         self.stats['Update'] += 1
                     except (DataError, IntegrityError) as e:
-                        self.logger.error('{} saving resource_id={} ({}): {}'.format(type(e).__name__, s_res[id_lookup[subtype]], s_res['info_resourceid'], e.message))
-                        return(0)
+                        msg = '{} saving resource_id={} ({}): {}'.format(type(e).__name__, s_res[id_lookup[subtype]], s_res['info_resourceid'], e.message)
+                        self.logger.error(msg)
+                        return(False, msg)
 
         for id in self.cur:
             if id not in self.new:
@@ -410,7 +411,7 @@ class HandleRDR():
                     self.logger.info('Deleted ID={}'.format(id))
                 except (DataError, IntegrityError) as e:
                     self.logger.error('{} deleting ID={}: {}'.format(type(e).__name__, id, e.message))
-        return(len(self.new))
+        return(True, '')
             
     def latest_status(self, current_statuses):
         for ordered_status in ['decommissioned', 'retired', 'post-production', 'production', 'pre-production', 'friendly', 'coming_soon']:
@@ -509,10 +510,22 @@ class HandleRDR():
             elif self.dest['scheme'] == 'analyze':
                 self.Analyze_RDR(RDR)
             elif self.dest['scheme'] == 'warehouse':
-                self.Warehouse_RDR(RDR)
+                pa_application=os.path.basename(__file__)
+                pa_function='Warehouse_RDR'
+                pa_id = self.src['uri']
+                pa_topic = 'rdr'
+                pa_about = 'project_affiliation=XSEDE'
+                pa = ProcessingActivity(pa_application, pa_function, pa_id , pa_topic, pa_about)
+                (rc, warehouse_msg) = self.Warehouse_RDR(RDR)
             
             self.end = datetime.now(utc)
-            self.logger.info('Processed in {:.3f}/seconds: {}/updates, {}/deletes, {}/skipped'.format((self.end - self.start).total_seconds(), self.stats['Update'], self.stats['Delete'], self.stats['Skip']))
+            summary_msg = 'Processed in {:.3f}/seconds: {}/updates, {}/deletes, {}/skipped'.format((self.end - self.start).total_seconds(), self.stats['Update'], self.stats['Delete'], self.stats['Skip'])
+            self.logger.info(summary_msg)
+            if self.dest['scheme'] == 'warehouse':
+                if rc:  # No errors
+                    pa.FinishActivity(rc, summary_msg)
+                else:   # Something failed, use returned message
+                    pa.FinishActivity(rc, warehouse_msg)
             if not self.args.daemon_action:
                 break
             self.smart_sleep(self.start)
