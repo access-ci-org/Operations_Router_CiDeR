@@ -325,7 +325,7 @@ class HandleRDR():
                     or p_res['info_resourceid'] == '':
                 self.stats['Skip'] += 1
                 continue
-                    
+
             # Attributes that don't have their own model field get put in the other_attributes field
             other_attributes=p_res.copy()
             self.sub = {}   # Sub-resource attributes go here
@@ -414,7 +414,7 @@ class HandleRDR():
         return(True, '')
             
     def latest_status(self, current_statuses):
-        for ordered_status in ['decommissioned', 'retired', 'post-production', 'production', 'pre-production', 'friendly', 'coming_soon']:
+        for ordered_status in ['decommissioned', 'retired', 'post_production', 'production', 'pre_production', 'friendly', 'coming_soon']:
             if ordered_status in current_statuses:
                 return(ordered_status)
         if len(current_statuses) > 0:
@@ -424,7 +424,8 @@ class HandleRDR():
 
     def latest_status_date(self, resource_status_dates, current_status, which_date):
         # which should be 'begin' or 'end'
-        key = '{}_{}_date'.format(current_status, which_date)
+        fixed_current_status = current_status.replace('-', '_')
+        key = '{}_{}_date'.format(fixed_current_status, which_date)
         if key not in resource_status_dates or resource_status_dates[key] is None:
             return(None)
         try:
