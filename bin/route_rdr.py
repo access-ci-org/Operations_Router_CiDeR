@@ -516,7 +516,7 @@ class HandleRDR():
 #                pa_id = self.src['uri']
                 pa_id = 'rdr'
                 pa_topic = 'rdr'
-                pa_about = 'project_affiliation=XSEDE'
+                pa_about = 'xsede.org'
                 pa = ProcessingActivity(pa_application, pa_function, pa_id , pa_topic, pa_about)
                 (rc, warehouse_msg) = self.Warehouse_RDR(RDR)
             
