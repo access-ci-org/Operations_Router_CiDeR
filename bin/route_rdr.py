@@ -513,7 +513,8 @@ class HandleRDR():
             elif self.dest['scheme'] == 'warehouse':
                 pa_application=os.path.basename(__file__)
                 pa_function='Warehouse_RDR'
-                pa_id = self.src['uri']
+#                pa_id = self.src['uri']
+                pa_id = 'rdr'
                 pa_topic = 'rdr'
                 pa_about = 'project_affiliation=XSEDE'
                 pa = ProcessingActivity(pa_application, pa_function, pa_id , pa_topic, pa_about)
