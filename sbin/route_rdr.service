@@ -1,0 +1,17 @@
+[Unit]
+Description=Information Services RDR Router 
+After=network.target remote-fs.target nss-lookup.target
+
+[Service]
+Type=forking
+EnvironmentFile=/soft/warehouse-apps-1.0/Manage-Glue2/PROD/sbin/route_rdr.sysconfig
+ExecStart=/soft/warehouse-apps-1.0/Manage-Glue2/PROD/sbin/route_rdr.daemon start
+ExecReload=/soft/warehouse-apps-1.0/Manage-Glue2/PROD/sbin/route_rdr.daemon restart
+ExecStop=/soft/warehouse-apps-1.0/Manage-Glue2/PROD/sbin/route_rdr.daemon stop
+PIDFile=/soft/warehouse-apps-1.0/Manage-Glue2/var/route_rdr.pid
+#PrivateTmp=true
+User=software
+Group=admin
+
+[Install]
+WantedBy=multi-user.target
