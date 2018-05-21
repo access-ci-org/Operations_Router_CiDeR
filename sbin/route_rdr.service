@@ -12,6 +12,7 @@ PIDFile=/soft/warehouse-apps-1.0/Manage-RDR/var/route_rdr.pid
 #PrivateTmp=true
 User=software
 Group=admin
+Restart=always
 
 [Install]
 WantedBy=multi-user.target
