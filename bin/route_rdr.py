@@ -92,11 +92,11 @@ class HandleRDR():
             with open(config_path, 'r') as file:
                 conf=file.read()
                 file.close()
-        except IOError, e:
+        except IOError as e:
             raise
         try:
             self.config = json.loads(conf)
-        except ValueError, e:
+        except ValueError as e:
             print 'Error "{}" parsing config={}'.format(e, config_path)
             sys.exit(1)
 
@@ -219,7 +219,7 @@ class HandleRDR():
         self.logger.debug('HTTP RESP {} {} (returned {}/bytes)'.format(response.status, response.reason, len(result)))
         try:
             rdr_obj = json.loads(result)
-        except ValueError, e:
+        except ValueError as e:
             self.logger.error('Response not in expected JSON format ({})'.format(e))
             return(None)
         else:
@@ -290,7 +290,7 @@ class HandleRDR():
             rdr_obj = json.loads(data)
             self.logger.info('Read and parsed {} bytes from file={}'.format(len(data), file))
             return(rdr_obj)
-        except ValueError, e:
+        except ValueError as e:
             self.logger.error('Error "{}" parsing file={}'.format(e, file))
             sys.exit(1)
 
