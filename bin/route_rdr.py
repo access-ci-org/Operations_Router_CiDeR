@@ -16,7 +16,10 @@ import signal
 import datetime
 from datetime import datetime, tzinfo, timedelta
 from time import sleep
-import httplib
+try:
+    import http.client as httplib
+except ImportError:
+    import httplib
 import json
 import ssl
 import shutil
@@ -97,7 +100,7 @@ class HandleRDR():
         try:
             self.config = json.loads(conf)
         except ValueError as e:
-            print 'Error "{}" parsing config={}'.format(e, config_path)
+            print('Error "{}" parsing config={}'.format(e, config_path))
             sys.exit(1)
 
         # Initialize logging from arguments, or config file, or default to WARNING as last resort
@@ -443,9 +446,9 @@ class HandleRDR():
                     ts = datetime.strftime(datetime.now(), '%Y-%m-%d_%H:%M:%S')
                     newpath = '{}.{}'.format(path, ts)
                     shutil.copy(path, newpath)
-                    print 'SaveDaemonLog as {}'.format(newpath)
+                    print('SaveDaemonLog as {}'.format(newpath))
         except Exception as e:
-            print 'Exception in SaveDaemonLog({})'.format(path)
+            print('Exception in SaveDaemonLog({})'.format(path))
         return
 
     def exit_signal(self, signal, frame):

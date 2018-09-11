@@ -2,8 +2,11 @@ DAEMON_BIN=/soft/warehouse-apps-1.0/Manage-RDR/PROD/bin/route_rdr.py
 # Add any command line options for your daemon here
 DAEMON_OPTS="-l info -c /soft/warehouse-apps-1.0/Manage-RDR/conf/route_rdr.conf"
 
-PYTHON=/soft/python-current/bin/python
-LD_LIBRARY_PATH=/soft/python-current/lib
+#PYTHON=/soft/python-current/bin/python
+#LD_LIBRARY_PATH=/soft/python-current/lib
+PYTHON=python3
+PYTHON_BASE=/soft/python/python-3.6.6-base
+PYTHON_ROOT=/soft/warehouse-apps-1.0/python
 PYTHONPATH=/soft/warehouse-apps-1.0/Manage-RDR/PROD/lib:/soft/warehouse-1.0/PROD/django_xsede_warehouse
 DJANGO_CONF=/soft/warehouse-apps-1.0/Manage-RDR/conf/django_xsede_warehouse.conf
 DJANGO_SETTINGS_MODULE=xsede_warehouse.settings
