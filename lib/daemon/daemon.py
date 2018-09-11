@@ -3,30 +3,24 @@
 # daemon/daemon.py
 # Part of ‘python-daemon’, an implementation of PEP 3143.
 #
-# Copyright © 2008–2015 Ben Finney <ben+python@benfinney.id.au>
-# Copyright © 2007–2008 Robert Niederreiter, Jens Klein
-# Copyright © 2004–2005 Chad J. Schroeder
-# Copyright © 2003 Clark Evans
-# Copyright © 2002 Noah Spurrier
-# Copyright © 2001 Jürgen Hermann
-#
-# This is free software: you may copy, modify, and/or distribute this work
-# under the terms of the Apache License, version 2.0 as published by the
-# Apache Software Foundation.
-# No warranty expressed or implied. See the file ‘LICENSE.ASF-2’ for details.
+# This is free software, and you are welcome to redistribute it under
+# certain conditions; see the end of this file for copyright
+# information, grant of license, and disclaimer of warranty.
 
 """ Daemon process behaviour.
     """
 
 from __future__ import (absolute_import, unicode_literals)
 
-import os
-import sys
-import resource
+import atexit
+import collections
 import errno
+import os
+import pwd
+import resource
 import signal
 import socket
-import atexit
+import sys
 try:
     # Python 2 has both ‘str’ (bytes) and ‘unicode’ (text).
     basestring = basestring
@@ -35,6 +29,8 @@ except NameError:
     # Python 3 names the Unicode data type ‘str’.
     basestring = str
     unicode = str
+
+__metaclass__ = type
 
 
 class DaemonError(Exception):
@@ -196,6 +192,15 @@ class DaemonContext:
             relinquish any effective privilege elevation inherited by the
             process.
 
+        `initgroups`
+            :Default: ``False``
+
+            If true, set the daemon process's supplementary groups as
+            determined by the specified `uid`.
+
+            This will require that the current process UID has
+            permission to change the process's owning GID.
+
         `prevent_core`
             :Default: ``True``
 
@@ -228,8 +233,6 @@ class DaemonContext:
 
         """
 
-    __metaclass__ = type
-
     def __init__(
             self,
             chroot_directory=None,
@@ -237,6 +240,7 @@ class DaemonContext:
             umask=0,
             uid=None,
             gid=None,
+            initgroups=False,
             prevent_core=True,
             detach_process=None,
             files_preserve=None,
@@ -263,6 +267,7 @@ class DaemonContext:
         if gid is None:
             gid = os.getgid()
         self.gid = gid
+        self.initgroups = initgroups
 
         if detach_process is None:
             detach_process = is_detach_process_context_required()
@@ -303,8 +308,13 @@ class DaemonContext:
               by the process. Note that the specified directory needs to
               already be set up for this purpose.
 
-            * Set the process UID and GID to the `uid` and `gid` attribute
-              values.
+            * Set the process owner (UID and GID) to the `uid` and `gid`
+              attribute values.
+
+              If the `initgroups` attribute is true, also set the process's
+              supplementary groups to all the user's groups (i.e. those
+              groups whose membership includes the username corresponding
+              to `uid`).
 
             * Close all open file descriptors. This excludes those listed in
               the `files_preserve` attribute, and those that correspond to the
@@ -353,7 +363,7 @@ class DaemonContext:
 
         change_file_creation_mask(self.umask)
         change_working_directory(self.working_directory)
-        change_process_owner(self.uid, self.gid)
+        change_process_owner(self.uid, self.gid, self.initgroups)
 
         if self.detach_process:
             detach_process_context()
@@ -441,20 +451,18 @@ class DaemonContext:
             items in `files_preserve`, and also each of `stdin`,
             `stdout`, and `stderr`. For each item:
 
-            * If the item is ``None``, it is omitted from the return
-              set.
+            * If the item is ``None``, omit it from the return set.
 
-            * If the item's ``fileno()`` method returns a value, that
-              value is in the return set.
+            * If the item's `fileno` method returns a value, include
+              that value in the return set.
 
-            * Otherwise, the item is in the return set verbatim.
-
+            * Otherwise, include the item verbatim in the return set.
             """
         files_preserve = self.files_preserve
         if files_preserve is None:
             files_preserve = []
         files_preserve.extend(
-                item for item in [self.stdin, self.stdout, self.stderr]
+                item for item in {self.stdin, self.stdout, self.stderr}
                 if hasattr(item, 'fileno'))
 
         exclude_descriptors = set()
@@ -507,6 +515,37 @@ class DaemonContext:
         return signal_handler_map
 
 
+def get_stream_file_descriptors(
+        stdin=sys.stdin,
+        stdout=sys.stdout,
+        stderr=sys.stderr,
+        ):
+    """ Get the set of file descriptors for the process streams.
+
+        :stdin: The input stream for the process (default:
+            `sys.stdin`).
+        :stdout: The ouput stream for the process (default:
+            `sys.stdout`).
+        :stderr: The diagnostic stream for the process (default:
+            `sys.stderr`).
+        :return: A `set` of each file descriptor (integer) for the
+            streams.
+
+        The standard streams are the files `sys.stdin`, `sys.stdout`,
+        `sys.stderr`.
+
+        Streams might in some circumstances be non-file objects.
+        Include in the result only those streams that actually have a
+        file descriptor (as returned by the `fileno` method).
+        """
+    file_descriptors = set(
+            fd for fd in set(
+                _get_file_descriptor(stream)
+                for stream in {stdin, stdout, stderr})
+            if fd is not None)
+    return file_descriptors
+
+
 def _get_file_descriptor(obj):
     """ Get the file descriptor, if the object has one.
 
@@ -517,7 +556,6 @@ def _get_file_descriptor(obj):
         The object may be a non-file object. It may also be a
         file-like object with no support for a file descriptor. In
         either case, return ``None``.
-
         """
     file_descriptor = None
     if hasattr(obj, 'fileno'):
@@ -580,20 +618,47 @@ def change_file_creation_mask(mask):
         raise error
 
 
-def change_process_owner(uid, gid):
-    """ Change the owning UID and GID of this process.
+def get_username_for_uid(uid):
+    """ Get the username for the specified UID. """
+    passwd_entry = pwd.getpwuid(uid)
+    username = passwd_entry.pw_name
+
+    return username
+
+
+def change_process_owner(uid, gid, initgroups=False):
+    """ Change the owning UID, GID, and groups of this process.
 
         :param uid: The target UID for the daemon process.
         :param gid: The target GID for the daemon process.
+        :param initgroups: If true, initialise the supplementary
+            groups of the process.
         :return: ``None``.
 
-        Set the GID then the UID of the process (in that order, to avoid
-        permission errors) to the specified `gid` and `uid` values.
-        Requires appropriate OS privileges for this process.
+        Sets the owning GID and UID of the process (in that order, to
+        avoid permission errors) to the specified `gid` and `uid`
+        values.
+
+        If `initgroups` is true, the supplementary groups of the
+        process are also initialised, with those corresponding to the
+        username for the target UID.
+
+        All these operations require appropriate OS privileges. If
+        permission is denied, a ``DaemonOSEnvironmentError`` is
+        raised.
 
         """
     try:
-        os.setgid(gid)
+        username = get_username_for_uid(uid)
+    except KeyError:
+        # We don't have a username to pass to ‘os.initgroups’.
+        initgroups = False
+
+    try:
+        if initgroups:
+            os.initgroups(username, gid)
+        else:
+            os.setgid(gid)
         os.setuid(uid)
     except Exception as exc:
         error = DaemonOSEnvironmentError(
@@ -615,7 +680,7 @@ def prevent_core_dump():
     try:
         # Ensure the resource limit exists on this platform, by requesting
         # its current value.
-        core_limit_prev = resource.getrlimit(core_resource)
+        resource.getrlimit(core_resource)
     except ValueError as exc:
         error = DaemonOSEnvironmentError(
                 "System does not support RLIMIT_CORE resource limit"
@@ -699,8 +764,7 @@ def is_socket(fd):
     file_socket = socket.fromfd(fd, socket.AF_INET, socket.SOCK_RAW)
 
     try:
-        socket_type = file_socket.getsockopt(
-                socket.SOL_SOCKET, socket.SO_TYPE)
+        file_socket.getsockopt(socket.SOL_SOCKET, socket.SO_TYPE)
     except socket.error as exc:
         exc_errno = exc.args[0]
         if exc_errno == errno.ENOTSOCK:
@@ -740,8 +804,8 @@ def is_process_started_by_superserver():
 def is_detach_process_context_required():
     """ Determine whether detaching the process context is required.
 
-        :return: ``True`` iff the process is already detached; otherwise
-            ``False``.
+        :return: ``False`` iff the process is already detached;
+            otherwise ``True``.
 
         The process environment is interrogated for the following:
 
@@ -796,14 +860,90 @@ def get_maximum_file_descriptors():
         of ``MAXFD`` is returned.
 
         """
-    limits = resource.getrlimit(resource.RLIMIT_NOFILE)
-    result = limits[1]
-    if result == resource.RLIM_INFINITY:
+    (__, hard_limit) = resource.getrlimit(resource.RLIMIT_NOFILE)
+
+    result = hard_limit
+    if hard_limit == resource.RLIM_INFINITY:
         result = MAXFD
+
     return result
 
 
-def close_all_open_files(exclude=set()):
+def _get_candidate_file_descriptors(exclude):
+    """ Get the collection of candidate file descriptors.
+
+        :param exclude: A collection of file descriptors that should
+            be excluded from the return set.
+        :return: The collection (a `set`) of file descriptors that are
+            candidates for files that may be open in this process.
+
+        Determine the set of all `int` values that could be open file
+        descriptors in this process. A file descriptor is a candidate
+        if it is within the range (0, `maxfd`), excluding those
+        integers in the `exclude` collection.
+
+        The `maxfd` value is determined from the standard library
+        `resource` module.
+        """
+    maxfd = get_maximum_file_descriptors()
+    candidates = set(range(0, maxfd)).difference(exclude)
+    return candidates
+
+
+FileDescriptorRange = collections.namedtuple(
+        'FileDescriptorRange', ['low', 'high'])
+
+
+def _get_candidate_file_descriptor_ranges(exclude):
+    """ Get the collection of candidate file descriptor ranges.
+
+        :param exclude: A collection of file descriptors that should
+            be excluded from the return ranges.
+        :return: The collection (a `list`) of ranges that contain the
+            file descriptors that are candidates for files that may be
+            open in this process.
+
+        Determine the ranges of all the candidate file descriptors.
+        Each range is a pair of `int` values (`low`, `high`).
+
+        A value is a candidate if it could be an open file descriptor
+        in this process, excluding those integers in the `exclude`
+        collection.
+        """
+    candidates_list = sorted(_get_candidate_file_descriptors(exclude))
+    ranges = []
+    this_range = FileDescriptorRange(
+            low=min(candidates_list),
+            high=(min(candidates_list) + 1))
+    for fd in candidates_list[1:]:
+        high = fd + 1
+        if this_range.high == fd:
+            # This file descriptor extends the current range.
+            this_range = this_range._replace(high=high)
+        else:
+            # The previous range has ended at a gap.
+            ranges.append(this_range)
+            # This file descriptor begins a new range.
+            this_range = FileDescriptorRange(low=fd, high=high)
+    ranges.append(this_range)
+    return ranges
+
+
+def _close_file_descriptor_ranges(ranges):
+    """ Close file descriptors described by `ranges`.
+
+        :param ranges: A sequence of `FileDescriptorRange` instances,
+            each describing a range of file descriptors to close.
+        :return: ``None``.
+
+        Attempt to close each open file descriptor – starting from
+        `low` and ending before `high` – from each range in `ranges`.
+        """
+    for range in ranges:
+        os.closerange(range.low, range.high)
+
+
+def close_all_open_files(exclude=None):
     """ Close all open file descriptors.
 
         :param exclude: Collection of file descriptors to skip when closing
@@ -813,12 +953,11 @@ def close_all_open_files(exclude=set()):
         Closes every file descriptor (if open) of this process. If
         specified, `exclude` is a set of file descriptors to *not*
         close.
-
         """
-    maxfd = get_maximum_file_descriptors()
-    for fd in reversed(range(maxfd)):
-        if fd not in exclude:
-            close_file_descriptor_if_open(fd)
+    if exclude is None:
+        exclude = set()
+    fd_ranges = _get_candidate_file_descriptor_ranges(exclude=exclude)
+    _close_file_descriptor_ranges(ranges=fd_ranges)
 
 
 def redirect_stream(system_stream, target_stream):
@@ -917,6 +1056,19 @@ def _chain_exception_from_existing_exception_context(exc, as_cause=False):
     else:
         exc.__context__ = existing_exc
     exc.__traceback__ = existing_traceback
+
+
+# Copyright © 2008–2018 Ben Finney <ben+python@benfinney.id.au>
+# Copyright © 2007–2008 Robert Niederreiter, Jens Klein
+# Copyright © 2004–2005 Chad J. Schroeder
+# Copyright © 2003 Clark Evans
+# Copyright © 2002 Noah Spurrier
+# Copyright © 2001 Jürgen Hermann
+#
+# This is free software: you may copy, modify, and/or distribute this work
+# under the terms of the Apache License, version 2.0 as published by the
+# Apache Software Foundation.
+# No warranty expressed or implied. See the file ‘LICENSE.ASF-2’ for details.
 
 
 # Local variables:

@@ -3,26 +3,32 @@
 # daemon/runner.py
 # Part of ‘python-daemon’, an implementation of PEP 3143.
 #
-# Copyright © 2009–2015 Ben Finney <ben+python@benfinney.id.au>
-# Copyright © 2007–2008 Robert Niederreiter, Jens Klein
-# Copyright © 2003 Clark Evans
-# Copyright © 2002 Noah Spurrier
-# Copyright © 2001 Jürgen Hermann
-#
-# This is free software: you may copy, modify, and/or distribute this work
-# under the terms of the Apache License, version 2.0 as published by the
-# Apache Software Foundation.
-# No warranty expressed or implied. See the file ‘LICENSE.ASF-2’ for details.
+# This is free software, and you are welcome to redistribute it under
+# certain conditions; see the end of this file for copyright
+# information, grant of license, and disclaimer of warranty.
 
 """ Daemon runner library.
     """
 
 from __future__ import (absolute_import, unicode_literals)
 
-import sys
+import errno
 import os
 import signal
-import errno
+import sys
+import warnings
+
+import lockfile
+
+from . import pidfile
+from .daemon import (
+        _chain_exception_from_existing_exception_context,
+        DaemonContext,
+        basestring,
+        unicode,
+)
+
+
 try:
     # Python 3 standard library.
     ProcessLookupError
@@ -30,12 +36,12 @@ except NameError:
     # No such class in Python 2.
     ProcessLookupError = NotImplemented
 
-import lockfile
+__metaclass__ = type
 
-from . import pidfile
-from .daemon import (basestring, unicode)
-from .daemon import DaemonContext
-from .daemon import _chain_exception_from_existing_exception_context
+
+warnings.warn(
+        "The ‘runner’ module is not a supported API for this library.",
+        PendingDeprecationWarning)
 
 
 class DaemonRunnerError(Exception):
@@ -77,8 +83,6 @@ class DaemonRunner:
 
         """
 
-    __metaclass__ = type
-
     start_message = "started with pid {pid:d}"
 
     def __init__(self, app):
@@ -110,7 +114,7 @@ class DaemonRunner:
         self.daemon_context.stdin = open(app.stdin_path, 'rt')
         self.daemon_context.stdout = open(app.stdout_path, 'w+t')
         self.daemon_context.stderr = open(
-                app.stderr_path, 'w+t', buffering=0)
+                app.stderr_path, 'wb+', buffering=0)
 
         self.pidfile = None
         if app.pidfile_path is not None:
@@ -315,6 +319,18 @@ def is_pidfile_stale(pidfile):
                 result = True
 
     return result
+
+
+# Copyright © 2009–2018 Ben Finney <ben+python@benfinney.id.au>
+# Copyright © 2007–2008 Robert Niederreiter, Jens Klein
+# Copyright © 2003 Clark Evans
+# Copyright © 2002 Noah Spurrier
+# Copyright © 2001 Jürgen Hermann
+#
+# This is free software: you may copy, modify, and/or distribute this work
+# under the terms of the Apache License, version 2.0 as published by the
+# Apache Software Foundation.
+# No warranty expressed or implied. See the file ‘LICENSE.ASF-2’ for details.
 
 
 # Local variables:
