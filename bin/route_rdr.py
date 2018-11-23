@@ -27,6 +27,7 @@ import shutil
 import django
 django.setup()
 from django.db import DataError, IntegrityError
+from django.conf import settings
 from django.utils.dateparse import parse_datetime
 from rdr_db.models import *
 from processing_status.process import ProcessingActivity
