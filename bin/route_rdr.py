@@ -49,7 +49,7 @@ class HandleRDR():
         self.config = {}
         self.src = {}
         self.dest = {}
-        for var in ['uri', 'scheme', 'path']: # Where <full> contains <type>:<obj>
+        for var in ['uri', 'scheme', 'path', 'display']: # Where <full> contains <type>:<obj>
             self.src[var] = None
             self.dest[var] = None
         self.peak_sleep = 10 * 60        # 10 minutes in seconds during peak business hours
@@ -142,6 +142,7 @@ class HandleRDR():
                 sys.exit(1)
             self.src['path'] = self.src['path'][2:]
         self.src['uri'] = self.args.src
+        self.src['display'] = self.args.src
 
         if not getattr(self.args, 'dest', None): # Tests for None and empty ''
             if 'DESTINATION' in self.config:
@@ -157,6 +158,10 @@ class HandleRDR():
             self.logger.error('Destination not {file, analyze, warehouse}')
             sys.exit(1)
         self.dest['uri'] = self.args.dest
+        if self.dest['scheme'] == 'warehouse':
+            self.dest['display'] = '{}@database={}'.format(self.dest['scheme'], settings.DATABASES['default']['HOST'])
+        else:
+            self.dest['display'] = self.args.dest
 
         if self.src['scheme'] in ['file'] and self.dest['scheme'] in ['file']:
             self.logger.error('Source and Destination can not both be a {file}')
@@ -495,6 +500,8 @@ class HandleRDR():
         signal.signal(signal.SIGINT, self.exit_signal)
         signal.signal(signal.SIGTERM, self.exit_signal)
         self.logger.info('Starting program={} pid={}, uid={}({})'.format(os.path.basename(__file__), os.getpid(), os.geteuid(), pwd.getpwuid(os.geteuid()).pw_name))
+        self.logger.info('Source: ' + self.src['display'])
+        self.logger.info('Destination: ' + self.dest['display'])
 
         while True:
             self.start = datetime.now(utc)
