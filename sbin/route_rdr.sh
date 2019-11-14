@@ -2,21 +2,21 @@
 do_start () {
     echo -n "Starting ${DAEMON_NAME}:"
     export LD_LIBRARY_PATH=${PYTHON_BASE}/lib
-    source ${PIPENV_ROOT}/bin/activate
+    source ${PIPENV_BASE}/bin/activate
     ${PYTHON_BIN} ${DAEMON_BIN} start ${DAEMON_OPTS}
     RETVAL=$?
 }
 do_stop () {
     echo -n "Stopping ${DAEMON_NAME}:"
     export LD_LIBRARY_PATH=${PYTHON_BASE}/lib
-    source ${PIPENV_ROOT}/bin/activate
+    source ${PIPENV_BASE}/bin/activate
     ${PYTHON_BIN} ${DAEMON_BIN} stop ${DAEMON_OPTS}
     RETVAL=$?
 }
 do_debug () {
     echo -n "Debugging: $PYTHON ${DAEMON_BIN} $@ ${DAEMON_OPTS}"
     export LD_LIBRARY_PATH=${PYTHON_BASE}/lib
-    source ${PIPENV_ROOT}/bin/activate
+    source ${PIPENV_BASE}/bin/activate
     ${PYTHON_BIN} ${DAEMON_BIN} $@ ${DAEMON_OPTS}
     RETVAL=$?
 }
