@@ -12,58 +12,61 @@
 
 # Change these lines to suit where you install your script and what you want to call it
 DAEMON_NAME=route_rdr
-DAEMON_DIR=/soft/warehouse-apps-1.0/Manage-RDR/PROD
-DAEMON_BIN=$DAEMON_DIR/bin/$DAEMON_NAME.py
-DAEMON_CONF=/soft/warehouse-apps-1.0/Manage-RDR/conf/$DAEMON_NAME.conf
+APP_BASE=/soft/warehouse-apps-1.0/Manage-RDR
+APP_SOURCE=${APP_BASE}/PROD
+WAREHOUSE_SOURCE=/soft/warehouse-1.0/PROD
+DAEMON_BIN=${APP_SOURCE}/bin/${DAEMON_NAME}.py
+DAEMON_LOG=${APP_BASE}/var/${DAEMON_NAME}.daemon.log
 
 # Add any command line options for your daemon here
-DAEMON_OPTS="-l info -c $DAEMON_CONF"
+DAEMON_OPTS="-l info -c ${APP_BASE}/conf/${DAEMON_NAME}.conf"
 
 # This next line determines what user the script runs as
 DAEMON_USER=software
 
 . /etc/init.d/functions
 
-#PYTHON=/soft/python-current/bin/python
-#export LD_LIBRARY_PATH=/soft/python-current/lib
-PYTHON=python3
-PYTHON_BASE=/soft/python/python-3.6.6-base
+PYTHON_BASE=${APP_BASE}/`cat python/lib/python*/orig-prefix.txt`
 export LD_LIBRARY_PATH=${PYTHON_BASE}/lib
-PYTHON_ROOT=/soft/warehouse-apps-1.0/Manage-RDR/python
-source ${PYTHON_ROOT}/bin/activate
-export PYTHONPATH=$DAEMON_DIR/lib:/soft/warehouse-1.0/PROD/django_xsede_warehouse
-export DJANGO_CONF=/soft/warehouse-apps-1.0/Manage-RDR/conf/django_xsede_warehouse.conf
+
+PIPENV_BASE=${APP_BASE}/python
+source ${PIPENV_BASE}/bin/activate
+
+PYTHON_BIN=python3
+
+export PYTHONPATH=${APP_SOURCE}/lib:${WAREHOUSE_SOURCE}/django_xsede_warehouse
+export DJANGO_CONF=${APP_BASE}/conf/django_xsede_warehouse.conf
 export DJANGO_SETTINGS_MODULE=xsede_warehouse.settings
 
 do_start () {
-    echo -n "Starting $DAEMON_NAME:"
+    echo -n "Starting ${DAEMON_NAME}:"
     if [ `id -u` = 0 ] ; then
-        su $DAEMON_USER -s /bin/sh -c "$PYTHON $DAEMON_BIN start $DAEMON_OPTS"
+        su ${DAEMON_USER} -s /bin/sh -c "${PYTHON_BIN} ${DAEMON_BIN} start ${DAEMON_OPTS}"
         RETVAL=$?
-    elif [ `id -u` = `id -u $DAEMON_USER` ] ; then
-        $PYTHON $DAEMON_BIN start $DAEMON_OPTS
+    elif [ `id -u` = `id -u ${DAEMON_USER}` ] ; then
+        ${PYTHON_BIN} ${DAEMON_BIN} start ${DAEMON_OPTS}
         RETVAL=$?
     else
-        echo "Only root or $DAEMON_USER should run $DAEMON_BIN"
+        echo "Only root or ${DAEMON_USER} should run ${DAEMON_BIN}"
         RETVAL=99
     fi
 }
 do_stop () {
-    echo -n "Stopping $DAEMON_NAME:"
+    echo -n "Stopping ${DAEMON_NAME}:"
     if [ `id -u` = 0 ] ; then
-        su $DAEMON_USER -s /bin/sh -c "$PYTHON $DAEMON_BIN stop $DAEMON_OPTS"
+        su ${DAEMON_USER} -s /bin/sh -c "${PYTHON_BIN} ${DAEMON_BIN} stop ${DAEMON_OPTS}"
         RETVAL=$?
-    elif [ `id -u` = `id -u $DAEMON_USER` ] ; then
-        $PYTHON $DAEMON_BIN stop $DAEMON_OPTS
+    elif [ `id -u` = `id -u ${DAEMON_USER}` ] ; then
+        ${PYTHON_BIN} ${DAEMON_BIN} stop ${DAEMON_OPTS}
         RETVAL=$?
     else
-        echo "Only root or $DAEMON_USER should run $DAEMON_BIN"
+        echo "Only root or ${DAEMON_USER} should run ${DAEMON_BIN}"
         RETVAL=99
     fi
 }
 do_debug () {
-    echo -n "Debugging: $PYTHON $DAEMON_BIN $@ $DAEMON_OPTS"
-    $PYTHON $DAEMON_BIN $@ $DAEMON_OPTS
+    echo -n "Debugging: ${PYTHON_BIN} ${DAEMON_BIN} $@ ${DAEMON_OPTS}"
+    ${PYTHON_BIN} ${DAEMON_BIN} $@ ${DAEMON_OPTS}
     RETVAL=$?
 }
 
@@ -87,7 +90,7 @@ case "$1" in
         ;;
 
     *)
-        echo "Usage: /etc/init.d/$DAEMON_NAME {start|stop|restart|status}"
+        echo "Usage: /etc/init.d/${DAEMON_NAME} {start|stop|restart|status}"
         exit 1
         ;;
 
