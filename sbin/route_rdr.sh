@@ -14,7 +14,7 @@ do_stop () {
     RETVAL=$?
 }
 do_debug () {
-    echo -n "Debugging: $PYTHON ${DAEMON_BIN} $@ ${DAEMON_OPTS}"
+    echo -n "Debugging: ${PYTHON_BIN} ${DAEMON_BIN} $@ ${DAEMON_OPTS}"
     export LD_LIBRARY_PATH=${PYTHON_BASE}/lib
     source ${PIPENV_BASE}/bin/activate
     ${PYTHON_BIN} ${DAEMON_BIN} $@ ${DAEMON_OPTS}
