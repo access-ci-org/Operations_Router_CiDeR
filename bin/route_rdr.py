@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # Process RDR2 information from a source (http, https, file) to a destination (analyze display, file, warehouse)
 # Can also subscribe from AMQP
