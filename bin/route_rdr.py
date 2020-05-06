@@ -524,10 +524,9 @@ class HandleRDR():
             elif self.dest['scheme'] == 'warehouse':
                 pa_application=os.path.basename(__file__)
                 pa_function='Warehouse_RDR'
-#                pa_id = self.src['uri']
-                pa_id = 'rdr'
-                pa_topic = 'rdr'
+                pa_topic = 'Resource Description Repository'
                 pa_about = 'xsede.org'
+                pa_id = '{}:{}:{}'.format(pa_application, pa_function, pa_topic)
                 pa = ProcessingActivity(pa_application, pa_function, pa_id , pa_topic, pa_about)
                 (rc, warehouse_msg) = self.Warehouse_RDR(RDR)
             
