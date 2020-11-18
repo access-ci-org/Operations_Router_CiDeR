@@ -1,4 +1,4 @@
-# XSEDE Information Services - Manage-RDR
+# Manage-RDR Router for XSEDE Information Services
 
 Synchronize RDR Resources to the Information Services warehouse.
 
