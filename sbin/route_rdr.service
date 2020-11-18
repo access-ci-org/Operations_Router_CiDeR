@@ -3,13 +3,9 @@ Description=Information Services RDR Router
 After=network.target remote-fs.target nss-lookup.target
 
 [Service]
-Type=forking
+Type=simple
 EnvironmentFile=/soft/warehouse-apps-1.0/Manage-RDR/PROD/sbin/route_rdr.sysconfig
-ExecStart=/soft/warehouse-apps-1.0/Manage-RDR/PROD/sbin/route_rdr.sh start
-ExecReload=/soft/warehouse-apps-1.0/Manage-RDR/PROD/sbin/route_rdr.sh restart
-ExecStop=/soft/warehouse-apps-1.0/Manage-RDR/PROD/sbin/route_rdr.sh stop
-PIDFile=/soft/warehouse-apps-1.0/Manage-RDR/var/route_rdr.pid
-#PrivateTmp=true
+ExecStart=/soft/warehouse-apps-1.0/Manage-RDR/PROD/sbin/route_rdr.service.sh start
 User=software
 Group=admin
 Restart=always
