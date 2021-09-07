@@ -1,0 +1,2 @@
+tag-1.2-20210907 JP
+  - Switch to .objects.update_or_create for Drupal 3.0

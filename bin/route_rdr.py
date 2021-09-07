@@ -370,25 +370,27 @@ class Router():
 
             p_latest_status = self.latest_status(p_res['current_statuses'])
             try:
-                model = RDRResource(rdr_resource_id=p_res['resource_id'],
-                                    info_resourceid=p_res['info_resourceid'],
-                                    info_siteid=p_res['info_resourceid'][p_res['info_resourceid'].find('.')+1:],
-                                    rdr_type='resource',
-                                    resource_descriptive_name=p_res['resource_descriptive_name'],
-                                    resource_description=p_res['resource_description'],
-                                    resource_status=p_res['resource_status'],
-                                    current_statuses=', '.join(p_res['current_statuses']),
-                                    latest_status=p_latest_status,
-                                    latest_status_begin=self.latest_status_date(p_res['resource_status'], p_latest_status, 'begin'),
-                                    latest_status_end=self.latest_status_date(p_res['resource_status'], p_latest_status, 'end'),
-                                    parent_resource=None,
-                                    recommended_use=None,
-                                    access_description=None,
-                                    project_affiliation=p_res['project_affiliation'],
-                                    provider_level=p_res['provider_level'],
-                                    other_attributes=other_attributes,
-                                    updated_at=p_res['updated_at'],
-                                    )
+                model, created = RDRResource.objects.update_or_create(
+                                    rdr_resource_id=p_res['resource_id'],
+                                    defaults = {
+                                        'info_resourceid': p_res['info_resourceid'],
+                                        'info_siteid': p_res['info_resourceid'][p_res['info_resourceid'].find('.')+1:],
+                                        'rdr_type': 'resource',
+                                        'resource_descriptive_name': p_res['resource_descriptive_name'],
+                                        'resource_description': p_res['resource_description'],
+                                        'resource_status': p_res['resource_status'],
+                                        'current_statuses': ', '.join(p_res['current_statuses']),
+                                        'latest_status': p_latest_status,
+                                        'latest_status_begin': self.latest_status_date(p_res['resource_status'], p_latest_status, 'begin'),
+                                        'latest_status_end': self.latest_status_date(p_res['resource_status'], p_latest_status, 'end'),
+                                        'parent_resource': None,
+                                        'recommended_use': None,
+                                        'access_description': None,
+                                        'project_affiliation': p_res['project_affiliation'],
+                                        'provider_level': p_res['provider_level'],
+                                        'other_attributes': other_attributes,
+                                        'updated_at': p_res['updated_at']
+                                    })
                 model.save()
                 self.logger.debug('Base ID={}, ResourceID={}'.format(p_res['resource_id'], p_res['info_resourceid']))
                 self.new[p_res['resource_id']]=model
@@ -407,25 +409,27 @@ class Router():
                         other_attributes.pop(attrib, None)
                     s_latest_status = self.latest_status(s_res['current_statuses'])
                     try:
-                        model = RDRResource(rdr_resource_id=s_res[id_lookup[subtype]],
-                                            info_resourceid=s_res['info_resourceid'],
-                                            info_siteid=s_res['info_resourceid'][s_res['info_resourceid'].find('.')+1:],
-                                            rdr_type=type_lookup[subtype],
-                                            resource_descriptive_name=s_res['resource_descriptive_name'],
-                                            resource_description=s_res['resource_description'],
-                                            resource_status=s_res['resource_status'],
-                                            current_statuses=', '.join(s_res['current_statuses']),
-                                            latest_status=s_latest_status,
-                                            latest_status_begin=self.latest_status_date(s_res['resource_status'], s_latest_status, 'begin'),
-                                            latest_status_end=self.latest_status_date(s_res['resource_status'], s_latest_status, 'end'),
-                                            parent_resource=s_res['parent_resource']['resource_id'],
-                                            recommended_use=s_res['recommended_use'],
-                                            access_description=s_res['access_description'],
-                                            project_affiliation=s_res.get('project_affiliation', p_res['project_affiliation']),
-                                            provider_level=s_res.get('provider_level', p_res['provider_level']),
-                                            other_attributes=other_attributes,
-                                            updated_at=s_res['updated_at'],
-                                            )
+                        model, created = RDRResource.objects.update_or_create(
+                                            rdr_resource_id=s_res[id_lookup[subtype]],
+                                            defaults = {
+                                                'info_resourceid': s_res['info_resourceid'],
+                                                'info_siteid': s_res['info_resourceid'][s_res['info_resourceid'].find('.')+1:],
+                                                'rdr_type': type_lookup[subtype],
+                                                'resource_descriptive_name': s_res['resource_descriptive_name'],
+                                                'resource_description': s_res['resource_description'],
+                                                'resource_status': s_res['resource_status'],
+                                                'current_statuses': ', '.join(s_res['current_statuses']),
+                                                'latest_status': s_latest_status,
+                                                'latest_status_begin': self.latest_status_date(s_res['resource_status'], s_latest_status, 'begin'),
+                                                'latest_status_end': self.latest_status_date(s_res['resource_status'], s_latest_status, 'end'),
+                                                'parent_resource': s_res['parent_resource']['resource_id'],
+                                                'recommended_use': s_res['recommended_use'],
+                                                'access_description': s_res['access_description'],
+                                                'project_affiliation': s_res.get('project_affiliation', p_res['project_affiliation']),
+                                                'provider_level': s_res.get('provider_level', p_res['provider_level']),
+                                                'other_attributes': other_attributes,
+                                                'updated_at': s_res['updated_at']
+                                            })
                         model.save()
                         self.logger.debug(' Sub ID={}, ResourceID={}, Type={}'.format(s_res[id_lookup[subtype]], s_res['parent_resource']['info_resourceid'], type_lookup[subtype]))
                         self.new[s_res[id_lookup[subtype]]]=model
