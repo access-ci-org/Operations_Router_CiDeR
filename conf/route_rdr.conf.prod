@@ -2,6 +2,7 @@
     "DESTINATION": "warehouse",
     "RDR_INFO_URL": "https://rdr.xsede.org/xsede-api/provider/rdr/v1/resources",
     "RDR_LAST_URL": "https://rdr.xsede.org/xsede-api/provider/rdr/v1/resources/last_update",
+    "AFFILIATIONS": ["XSEDE", "TACC"],
     "LOG_FILE": "/soft/warehouse-apps-1.0/Manage-RDR/var/route_rdr.log",
     "LOG_LEVEL": "warning",
     "RUN_DIR": "/soft/warehouse-apps-1.0/Manage-RDR/var",

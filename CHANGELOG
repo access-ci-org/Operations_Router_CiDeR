@@ -1,2 +1,5 @@
+tag-1.3-20220331 JP
+  - Implement the ability to load multiple affiliations, use library to parse url, bug fix(s)
+
 tag-1.2-20210907 JP
   - Switch to .objects.update_or_create for Drupal 3.0

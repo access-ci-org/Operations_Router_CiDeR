@@ -69,7 +69,7 @@ do_stop () {
 }
 do_debug () {
     echo -n "Debugging: ${PYTHON_BIN} ${APP_BIN} $@ ${APP_OPTS}"
-    ${PYTHON_BIN} ${APP_BIN} $@ ${APP_OPTS}
+    ${PYTHON_BIN} ${APP_BIN} start $@ ${APP_OPTS}
     RETVAL=$?
 }
 
