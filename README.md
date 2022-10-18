@@ -1,5 +1,3 @@
-# Manage-RDR Router for XSEDE Information Services
+# ACCESS CONECT Information Sharing Platform CiDeR Router
 
-Synchronize RDR Resources to the Information Services warehouse.
-
-Additional details at [https://info.xsede.org/info/](https://info.xsede.org/info/).
+Synchronize CiDeR Resources to the Warehouse

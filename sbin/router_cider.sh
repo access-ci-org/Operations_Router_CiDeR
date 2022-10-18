@@ -1,19 +1,19 @@
 #!/bin/sh
 
 ### BEGIN INIT INFO
-# Provides:          route_rdr
+# Provides:          router_cider
 # Required-Start:    $remote_fs $syslog
 # Required-Stop:     $remote_fs $syslog
 # Default-Start:     2 3 4 5
 # Default-Stop:      0 1 6
-# Short-Description: Route RDR information from a source to a destination
-# Description:       Route RDR information from a {file, directory, amqp} to a {directory, api}
+# Short-Description: ACCESS CONECT Information Sharing Platform CiDeR Router
+# Description:       Route CiDeR information from the authoritative source (database) to the warehouse
 ### END INIT INFO
 
 ####### Customizations START #######
 APP_NAME=route_rdr
-APP_BASE=/soft/warehouse-apps-1.0/Manage-RDR
-WAREHOUSE_BASE=/soft/warehouse-1.0
+APP_BASE=/soft/warehouse-apps-2.0/Operations_Router_CiDeR
+WAREHOUSE_BASE=/soft/warehouse-2.0
 # Override in shell environment
 if [ -z "$PYTHON_BASE" ]; then
     PYTHON_BASE=/soft/python/python-3.7.7-base
@@ -37,9 +37,9 @@ PYTHON_BIN=python3
 export LD_LIBRARY_PATH=${PYTHON_BASE}/lib
 source ${APP_BASE}/python/bin/activate
 
-export PYTHONPATH=${APP_SOURCE}/lib:${WAREHOUSE_SOURCE}/django_xsede_warehouse
-export DJANGO_CONF=${APP_BASE}/conf/django_xsede_warehouse.conf
-export DJANGO_SETTINGS_MODULE=xsede_warehouse.settings
+export PYTHONPATH=${APP_SOURCE}/lib:${WAREHOUSE_SOURCE}/Operations_Warehouse_Django
+export DJANGO_CONF=${APP_BASE}/conf/Operations_Warehouse_Django.conf
+export DJANGO_SETTINGS_MODULE=Operations_Warehouse_Django.settings
 
 do_start () {
     echo -n "Starting ${APP_NAME}:"

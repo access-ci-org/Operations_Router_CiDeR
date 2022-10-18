@@ -1,0 +1,14 @@
+[Unit]
+Description=ACCESS CONECT Information Sharing Platform CiDeR Router
+After=network.target remote-fs.target nss-lookup.target
+
+[Service]
+Type=simple
+EnvironmentFile=/soft/warehouse-apps-2.0/Operations_Router_CiDeR/PROD/sbin/router_cider.sysconfig
+ExecStart=/soft/warehouse-apps-2.0/Operations_Router_CiDeR/PROD/sbin/router_cider.service.sh start
+User=software
+Group=admin
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
 
-# Process RDR2 information from a source (http, https, file) to a destination (analyze display, file, warehouse)
-# Can also subscribe from AMQP
-#
 import argparse
-from datetime import datetime, tzinfo, timedelta
+from datetime import datetime, timezone, tzinfo, timedelta
 import http.client as httplib
 import json
 import logging
@@ -26,19 +23,14 @@ django.setup()
 from django.db import DataError, IntegrityError
 from django.conf import settings
 from django.utils.dateparse import parse_datetime
-from rdr_db.models import *
+from cider.models import *
 from processing_status.process import ProcessingActivity
 
-import pdb
+import pytz
+Central_TZ = pytz.timezone('US/Central')
+UTC_TZ = pytz.timezone('UTC')
 
-class UTC(tzinfo):
-    def utcoffset(self, dt):
-        return timedelta(0)
-    def tzname(self, dt):
-        return 'UTC'
-    def dst(self, dt):
-        return timedelta(0)
-utc = UTC()
+import pdb
 
 # Used during initialization before loggin is enabled
 def eprint(*args, **kwargs):
@@ -57,8 +49,8 @@ class Router():
                             help='Daemonize execution')
         parser.add_argument('-l', '--log', action='store', \
                             help='Logging level (default=warning)')
-        parser.add_argument('-c', '--config', action='store', default='./route_rdr.conf', \
-                            help='Configuration file default=./route_rdr.conf')
+        parser.add_argument('-c', '--config', action='store', default='./router_cider.conf', \
+                            help='Configuration file default=./router_cider.conf')
         parser.add_argument('--pdb', action='store_true', \
                             help='Run with Python debugger')
         self.args = parser.parse_args()
@@ -129,12 +121,12 @@ class Router():
                             'resource_descriptive_name', 'resource_description',
                             'project_affiliation', 'provider_level',
                             'resource_status', 'current_statuses', 'updated_at']
-        default_file = 'file:./rdr.json'
+        default_file = 'file:./cider_infrastructure.json'
 
         # Verify arguments and parse compound arguments
         if not getattr(self.args, 'src', None): # Tests for None and empty ''
-            if 'RDR_INFO_URL' in self.config:
-                self.args.src = self.config['RDR_INFO_URL']
+            if 'CIDER_INFO_URL' in self.config:
+                self.args.src = self.config['CIDER_INFO_URL']
         if not getattr(self.args, 'src', None): # Tests for None and empty ''
             self.args.src = default_file
         idx = self.args.src.find(':')
@@ -212,24 +204,24 @@ class Router():
             self.logger.error('Exiting with rc={}'.format(rc))
         sys.exit(rc)
 
-    def Retrieve_RDR_Resources(self, url):
-        rdr_all = []
+    def Retrieve_Infrastructure(self, url):
+        infra_all = []
         for AFF in self.AFFILIATIONS:
-            rdr_aff = self.Retrieve_RDR(url, affiliation=AFF)
-            if rdr_aff:
-                if 'resources' not in rdr_aff:
-                    self.logger.error('RDR JSON response (affiliation={}) is missing a \'resources\' element'.format(AFF))
+            infra_aff = self.Retrieve_Affiliation_Infrastructure(url, affiliation=AFF)
+            if infra_aff:
+                if 'resources' not in infra_aff:
+                    self.logger.error('CiDeR JSON response (affiliation={}) is missing a \'resources\' element'.format(AFF))
                 else:
-                    rdr_all.extend(rdr_aff['resources'])
-        return(rdr_all)
+                    infra_all.extend(infra_aff['resources'])
+        return(infra_all)
     
-    def Retrieve_RDR(self, url, affiliation='XSEDE'):
+    def Retrieve_Affiliation_Infrastructure(self, url, affiliation='XSEDE'):
         urlp = urlparse(url)
         if not urlp.scheme or not urlp.netloc or not urlp.path:
-            self.logger.error('RDR URL is not valid: {}'.format(url))
+            self.logger.error('CiDeR URL is not valid: {}'.format(url))
             sys.exit(1)
         if urlp.scheme not in ['http', 'https']:
-            self.logger.error('RDR URL scheme is not valid: {}'.format(url))
+            self.logger.error('CiDeR URL scheme is not valid: {}'.format(url))
             sys.exit(1)
         if ':' in urlp.netloc:
             (host, port) = urlp.netloc.split(':')
@@ -249,15 +241,15 @@ class Router():
         result = response.read()
         self.logger.debug('HTTP RESP {} {} (returned {}/bytes)'.format(response.status, response.reason, len(result)))
         try:
-            rdr_json = json.loads(result)
+            result_json = json.loads(result)
         except ValueError as e:
             self.logger.error('Response not in expected JSON format ({})'.format(e))
             return(None)
-        return(rdr_json)
+        return(result_json)
 
-    def Analyze_RDR(self, rdr_obj):
+    def Analyze_Info(self, info_json):
         maxlen = {}
-        for p_res in rdr_obj:  # Parent resources
+        for p_res in info_json:  # Parent resources
             if any(x not in p_res for x in ('project_affiliation', 'resource_id', 'info_resourceid')) \
                     or p_res['project_affiliation'] not in self.AFFILIATIONS \
                     or str(p_res['info_resourceid']).lower() == 'none' \
@@ -300,8 +292,8 @@ class Router():
         for x in maxlen:
             self.logger.debug('Max({})={}'.format(x, maxlen[x]))
 
-    def Write_Cache(self, file, rdr_obj):
-        data = json.dumps(rdr_obj)
+    def Write_Cache(self, file, info_json):
+        data = json.dumps(info_json)
         with open(file, 'w') as my_file:
             my_file.write(data)
             my_file.close()
@@ -313,14 +305,14 @@ class Router():
             data = my_file.read()
             my_file.close()
         try:
-            rdr_obj = json.loads(data)
+            info_json = json.loads(data)
             self.logger.info('Read and parsed {} bytes from file={}'.format(len(data), file))
-            return(rdr_obj)
+            return(info_json)
         except ValueError as e:
             self.logger.error('Error "{}" parsing file={}'.format(e, file))
             sys.exit(1)
 
-    def Warehouse_RDR(self, rdr_obj):
+    def Warehouse_Info(self, info_json):
         id_lookup = {'compute_resources':   'compute_resource_id',
                     'other_resources':     'other_resource_id',
                     'grid_resources':      'grid_resource_id',
@@ -334,10 +326,10 @@ class Router():
 
         self.cur = {}   # Resources currently in database
         self.new = {}   # New resources in document
-        for item in RDRResource.objects.all():
-            self.cur[item.rdr_resource_id] = item
+        for item in CiderInfrastructure.objects.all():
+            self.cur[item.cider_resource_id] = item
 
-        for p_res in rdr_obj:
+        for p_res in info_json:
             # Require affiliation=XSEDE, a resource_id, and an information services ResourceID
             if any(x not in p_res for x in ('project_affiliation', 'resource_id', 'info_resourceid')) \
                     or p_res['project_affiliation'] not in self.AFFILIATIONS \
@@ -358,12 +350,12 @@ class Router():
 
             p_latest_status = self.latest_status(p_res['current_statuses'])
             try:
-                model, created = RDRResource.objects.update_or_create(
-                                    rdr_resource_id=p_res['resource_id'],
+                model, created = CiderInfrastructure.objects.update_or_create(
+                                    cider_resource_id=p_res['resource_id'],
                                     defaults = {
                                         'info_resourceid': p_res['info_resourceid'],
                                         'info_siteid': p_res['info_resourceid'][p_res['info_resourceid'].find('.')+1:],
-                                        'rdr_type': 'resource',
+                                        'cider_type': 'resource',
                                         'resource_descriptive_name': p_res['resource_descriptive_name'],
                                         'resource_description': p_res['resource_description'],
                                         'resource_status': p_res['resource_status'],
@@ -397,12 +389,12 @@ class Router():
                         other_attributes.pop(attrib, None)
                     s_latest_status = self.latest_status(s_res['current_statuses'])
                     try:
-                        model, created = RDRResource.objects.update_or_create(
-                                            rdr_resource_id=s_res[id_lookup[subtype]],
+                        model, created = CiderInfrastructure.objects.update_or_create(
+                                            cider_resource_id=s_res[id_lookup[subtype]],
                                             defaults = {
                                                 'info_resourceid': s_res['info_resourceid'],
                                                 'info_siteid': s_res['info_resourceid'][s_res['info_resourceid'].find('.')+1:],
-                                                'rdr_type': type_lookup[subtype],
+                                                'cider_type': type_lookup[subtype],
                                                 'resource_descriptive_name': s_res['resource_descriptive_name'],
                                                 'resource_description': s_res['resource_description'],
                                                 'resource_status': s_res['resource_status'],
@@ -430,7 +422,7 @@ class Router():
         for id in self.cur:
             if id not in self.new:
                 try:
-                    RDRResource.objects.filter(rdr_resource_id=id).delete()
+                    CiderInfrastructure.objects.filter(cider_resource_id=id).delete()
                     self.stats['Delete'] += 1
                     self.logger.info('Deleted ID={}'.format(id))
                 except (DataError, IntegrityError) as e:
@@ -460,7 +452,7 @@ class Router():
     def smart_sleep(self, last_run):
         # This functions sleeps, performs refresh checks, and returns when it's time to refresh
         while True:
-            if 12 <= datetime.now(utc).hour <= 24: # Between 6 AM and 6 PM Central (~12 to 24 UTC)
+            if 12 <= datetime.now(timezone.utc).hour <= 24: # Between 6 AM and 6 PM Central (~12 to 24 UTC)
                 current_sleep = self.peak_sleep
             else:
                 current_sleep = self.off_sleep
@@ -468,7 +460,7 @@ class Router():
             sleep(current_sleep)
 
             # Force a refresh every 12 hours at Noon and Midnight UTC
-            now_utc = datetime.now(utc)
+            now_utc = datetime.now(timezone.utc)
             if ( (now_utc.hour < 12 and last_run.hour > 12) or \
                 (now_utc.hour > 12 and last_run.hour < 12) ):
                 self.logger.info('REFRESH TRIGGER: Every 12 hours')
@@ -481,8 +473,8 @@ class Router():
                 return
 
             # If recent database update
-            if 'RDR_LAST_URL' in self.config and self.config['RDR_LAST_URL']:
-                ts_json = self.Retrieve_RDR(self.config['RDR_LAST_URL'])
+            if 'CIDER_LAST_URL' in self.config and self.config['CIDER_LAST_URL']:
+                ts_json = self.Retrieve_Affiliation_Infrastructure(self.config['CIDER_LAST_URL'])
             try:
                 last_db_update = parse_datetime(ts_json['last_update_time'])
                 self.logger.info('Last DB update at {} with last refresh at {}'.format(last_db_update, last_run))
@@ -495,7 +487,7 @@ class Router():
 
     def Run(self):
         while True:
-            self.start = datetime.now(utc)
+            self.start = datetime.now(timezone.utc)
             self.stats = {
                 'Update': 0,
                 'Delete': 0,
@@ -503,25 +495,25 @@ class Router():
             }
             
             if self.src['scheme'] == 'file':
-                RDR = self.Read_Cache(self.src['path'])
+                RAW = self.Read_Cache(self.src['path'])
             else:
-                RDR = self.Retrieve_RDR_Resources(self.src['uri'])
+                RAW = self.Retrieve_Infrastructure(self.src['uri'])
 
-            if RDR:
+            if RAW:
                 if self.dest['scheme'] == 'file':
-                    bytes = self.Write_Cache(self.dest['path'], RDR)
+                    bytes = self.Write_Cache(self.dest['path'], RAW)
                 elif self.dest['scheme'] == 'analyze':
-                    self.Analyze_RDR(RDR)
+                    self.Analyze_Info(RAW)
                 elif self.dest['scheme'] == 'warehouse':
                     pa_application=os.path.basename(__file__)
-                    pa_function='Warehouse_RDR'
+                    pa_function='Operations_Router_CiDeR'
                     pa_topic = 'Resource Description Repository'
                     pa_about = ','.join(self.AFFILIATIONS)
                     pa_id = '{}:{}:{}'.format(pa_application, pa_function, pa_topic)
                     pa = ProcessingActivity(pa_application, pa_function, pa_id , pa_topic, pa_about)
-                    (rc, warehouse_msg) = self.Warehouse_RDR(RDR)
+                    (rc, warehouse_msg) = self.Warehouse_Info(RAW)
                 
-                self.end = datetime.now(utc)
+                self.end = datetime.now(timezone.utc)
                 summary_msg = 'Processed in {:.3f}/seconds: {}/updates, {}/deletes, {}/skipped'.format((self.end - self.start).total_seconds(), self.stats['Update'], self.stats['Delete'], self.stats['Skip'])
                 self.logger.info(summary_msg)
                 if self.dest['scheme'] == 'warehouse':
