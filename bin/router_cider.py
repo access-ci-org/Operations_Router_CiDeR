@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
-from datetime import datetime, timezone, tzinfo, timedelta
+from datetime import datetime, timezone
 import http.client as httplib
 import json
 import logging
@@ -25,10 +25,6 @@ from django.conf import settings
 from django.utils.dateparse import parse_datetime
 from cider.models import *
 from warehouse_state.process import ProcessingActivity
-
-import pytz
-Central_TZ = pytz.timezone('US/Central')
-UTC_TZ = pytz.timezone('UTC')
 
 import pdb
 
