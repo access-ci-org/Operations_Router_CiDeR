@@ -229,7 +229,9 @@ class Router():
         headers = {'Content-type': 'application/json',
                     'XA-CLIENT': affiliation,
                     'XA-KEY-FORMAT': 'underscore'}
-        ctx = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+#        ctx = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+#   2022-10-21 JP - figure out later the appropriate level of ssl verification
+        ctx = ssl.create_default_context()
         conn = httplib.HTTPSConnection(host=host, port=port, context=ctx)
         conn.request('GET', urlp.path, None , headers)
         self.logger.debug('HTTP GET  {}'.format(url))
