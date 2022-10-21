@@ -11,9 +11,9 @@
 ### END INIT INFO
 
 ####### Customizations START #######
-APP_NAME=route_rdr
-APP_BASE=/soft/warehouse-apps-2.0/Operations_Router_CiDeR
-WAREHOUSE_BASE=/soft/warehouse-2.0
+APP_NAME=%APP_NAME%
+APP_BASE=%APP_HOME%
+WAREHOUSE_BASE=%WAREHOUSE_HOME%
 # Override in shell environment
 if [ -z "$PYTHON_BASE" ]; then
     PYTHON_BASE=/soft/python/python-3.7.7-base

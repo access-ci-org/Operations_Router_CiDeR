@@ -1,10 +1,10 @@
 {
     "DESTINATION": "warehouse",
-    "RDR_INFO_URL": "https://cider.access-ci.org/xsede-api/provider/rdr/v1/resources",
-    "RDR_LAST_URL": "https://cider.access-ci.org/xsede-api/provider/rdr/v1/resources/last_update",
+    "CIDER_INFO_URL": "https://cider.access-ci.org/xsede-api/provider/rdr/v1/resources",
+    "CIDER_LAST_URL": "https://cider.access-ci.org/xsede-api/provider/rdr/v1/resources/last_update",
     "AFFILIATIONS": ["XSEDE", "TACC", "ACCESS"],
-    "LOG_FILE": "/soft/warehouse-apps-2.0/Operations_Router_CiDeR/var/router_cider.log",
+    "LOG_FILE": "%APP_HOME%/router_cider.log",
     "LOG_LEVEL": "warning",
-    "RUN_DIR": "/soft/warehouse-apps-2.0/Operations_Router_CiDeR/var",
-    "PID_FILE": "/soft/warehouse-apps-2.0/Operations_Router_CiDeR/var/router_cider.pid"
+    "RUN_DIR": "%APP_HOME%/var",
+    "PID_FILE": "%APP_HOME%/var/router_cider.pid"
 }
