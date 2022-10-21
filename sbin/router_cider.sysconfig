@@ -9,5 +9,5 @@ PIPENV_BASE=${APP_BASE}/python
 PYTHON_BIN=python3
 PYTHONPATH=${APP_BASE}/PROD/lib:%WAREHOUSE_DJANGO%
 
-DJANGO_CONF=${APP_BASE}/conf/Operations_Warehouse_Django.conf
+DJANGO_CONF=${APP_BASE}/conf/django_prod_router.conf
 DJANGO_SETTINGS_MODULE=Operations_Warehouse_Django.settings
