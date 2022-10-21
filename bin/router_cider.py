@@ -61,12 +61,12 @@ class Router():
             with open(self.config_file, 'r') as file:
                 conf=file.read()
         except IOError as e:
-            eprint('Error "{}" reading config={}'.format(e, config_path))
+            eprint('Error "{}" reading config={}'.format(e, self.config_file))
             sys.exit(1)
         try:
             self.config = json.loads(conf)
         except ValueError as e:
-            eprint('Error "{}" parsing config={}'.format(e, config_path))
+            eprint('Error "{}" parsing config={}'.format(e, self.config_file))
             sys.exit(1)
 
         if self.config.get('PID_FILE'):
