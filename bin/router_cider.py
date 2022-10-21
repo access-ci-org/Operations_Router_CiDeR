@@ -24,7 +24,7 @@ from django.db import DataError, IntegrityError
 from django.conf import settings
 from django.utils.dateparse import parse_datetime
 from cider.models import *
-from warehouse_status.process import ProcessingActivity
+from warehouse_state.process import ProcessingActivity
 
 import pytz
 Central_TZ = pytz.timezone('US/Central')
