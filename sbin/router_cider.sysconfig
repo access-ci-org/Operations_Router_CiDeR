@@ -2,12 +2,12 @@ APP_NAME=%APP_NAME%
 APP_BASE=%APP_HOME%
 APP_BIN=%APP_HOME%/PROD/bin/%APP_NAME%.py
 # Add any command line options for your daemon here
-APP_OPTS="-l info -c ${APP_BASE}/conf/%APP_NAME%.conf"
+APP_OPTS="-l info -c %APP_BASE%/conf/%APP_NAME%.conf"
 
 PYTHON_BASE=%PYTHON_BASE%
-PIPENV_BASE=${APP_BASE}/python
+PIPENV_BASE=%APP_BASE%/python
 PYTHON_BIN=python3
-PYTHONPATH=${APP_BASE}/PROD/lib:%WAREHOUSE_DJANGO%
+PYTHONPATH=%APP_BASE%/PROD/lib:%WAREHOUSE_DJANGO%
 
-DJANGO_CONF=${APP_BASE}/conf/django_prod_router.conf
+DJANGO_CONF=%APP_BASE%/conf/django_prod_router.conf
 DJANGO_SETTINGS_MODULE=Operations_Warehouse_Django.settings

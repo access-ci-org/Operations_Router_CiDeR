@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 do_start () {
     echo -n "Starting %APP_NAME%:"
     export LD_LIBRARY_PATH=${PYTHON_BASE}/lib
