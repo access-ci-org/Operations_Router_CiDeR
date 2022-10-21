@@ -1,13 +1,13 @@
 #!/bin/sh
 do_start () {
-    echo -n "Starting ${APP_NAME}:"
+    echo -n "Starting %APP_NAME%:"
     export LD_LIBRARY_PATH=${PYTHON_BASE}/lib
     source ${PIPENV_BASE}/bin/activate
     exec ${PYTHON_BIN} ${APP_BIN} start ${APP_OPTS}
     RETVAL=$?
 }
 do_stop () {
-    echo -n "Stopping ${APP_NAME}:"
+    echo -n "Stopping %APP_NAME%:"
     export LD_LIBRARY_PATH=${PYTHON_BASE}/lib
     source ${PIPENV_BASE}/bin/activate
     exec ${PYTHON_BIN} ${APP_BIN} stop ${APP_OPTS}
@@ -36,7 +36,7 @@ case "$1" in
         ;;
 
     *)
-        echo "Usage: ${APP_NAME} {start|stop|debug|restart}"
+        echo "Usage: %APP_NAME% {start|stop|debug|restart}"
         exit 1
         ;;
 

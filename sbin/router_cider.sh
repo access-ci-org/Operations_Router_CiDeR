@@ -1,7 +1,7 @@
 #!/bin/sh
 
 ### BEGIN INIT INFO
-# Provides:          router_cider
+# Provides:          %APP_NAME%
 # Required-Start:    $remote_fs $syslog
 # Required-Stop:     $remote_fs $syslog
 # Default-Start:     2 3 4 5
@@ -12,33 +12,32 @@
 
 ####### Customizations START #######
 APP_NAME=%APP_NAME%
-APP_BASE=%APP_HOME%
-WAREHOUSE_BASE=%WAREHOUSE_HOME%
+APP_HOME=%APP_HOME%
+WAREHOUSE_DJANGO=%WAREHOUSE_DJANGO%
 # Override in shell environment
 if [ -z "$PYTHON_BASE" ]; then
-    PYTHON_BASE=/soft/python/python-3.7.7-base
+    PYTHON_BASE=%PYTHON_BASE%
 fi
 DAEMON_USER=software
 ####### Customizations END #######
 
 ####### Everything else should be standard #######
-APP_SOURCE=${APP_BASE}/PROD
-WAREHOUSE_SOURCE=${WAREHOUSE_BASE}/PROD
+APP_SOURCE=${APP_HOME}/PROD
 
-APP_LOG=${APP_BASE}/var/${APP_NAME}.daemon.log
+APP_LOG=${APP_HOME}/var/${APP_NAME}.daemon.log
 if [[ "$1" != --pdb && "$2" != --pdb && "$3" != --pdb && "$4" != --pdb ]]; then
     exec >${APP_LOG} 2>&1
 fi
 
 APP_BIN=${APP_SOURCE}/bin/${APP_NAME}.py
-APP_OPTS="-l info -c ${APP_BASE}/conf/${APP_NAME}.conf"
+APP_OPTS="-l info -c ${APP_HOME}/conf/${APP_NAME}.conf"
 
 PYTHON_BIN=python3
 export LD_LIBRARY_PATH=${PYTHON_BASE}/lib
-source ${APP_BASE}/python/bin/activate
+source ${APP_HOME}/python/bin/activate
 
-export PYTHONPATH=${APP_SOURCE}/lib:${WAREHOUSE_SOURCE}/Operations_Warehouse_Django
-export DJANGO_CONF=${APP_BASE}/conf/Operations_Warehouse_Django.conf
+export PYTHONPATH=${APP_SOURCE}/lib:${WAREHOUSE_DJANGO}
+export DJANGO_CONF=${APP_HOME}/conf/Operations_Warehouse_Django.conf
 export DJANGO_SETTINGS_MODULE=Operations_Warehouse_Django.settings
 
 do_start () {

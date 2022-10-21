@@ -3,8 +3,8 @@
     "CIDER_INFO_URL": "https://cider.access-ci.org/xsede-api/provider/rdr/v1/resources",
     "CIDER_LAST_URL": "https://cider.access-ci.org/xsede-api/provider/rdr/v1/resources/last_update",
     "AFFILIATIONS": ["XSEDE", "TACC", "ACCESS"],
-    "LOG_FILE": "%APP_HOME%/router_cider.log",
+    "LOG_FILE": "%APP_HOME%/%APP_NAME%.log",
     "LOG_LEVEL": "warning",
     "RUN_DIR": "%APP_HOME%/var",
-    "PID_FILE": "%APP_HOME%/var/router_cider.pid"
+    "PID_FILE": "%APP_HOME%/var/%APP_NAME%.pid"
 }

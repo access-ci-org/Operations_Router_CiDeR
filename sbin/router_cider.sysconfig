@@ -1,13 +1,13 @@
-APP_NAME=router_cider
+APP_NAME=%APP_NAME%
 APP_BASE=%APP_HOME%
-APP_BIN=%APP_HOME%/PROD/bin/router_cider.py
+APP_BIN=%APP_HOME%/PROD/bin/%APP_NAME%.py
 # Add any command line options for your daemon here
-APP_OPTS="-l info -c ${APP_BASE}/conf/router_cider.conf"
+APP_OPTS="-l info -c ${APP_BASE}/conf/%APP_NAME%.conf"
 
 PYTHON_BASE=%PYTHON_BASE%
 PIPENV_BASE=${APP_BASE}/python
 PYTHON_BIN=python3
-PYTHONPATH=${APP_BASE}/PROD/lib:%WAREHOUSE_HOME%/PROD/Operations_Warehouse_Django
+PYTHONPATH=${APP_BASE}/PROD/lib:%WAREHOUSE_DJANGO%
 
 DJANGO_CONF=${APP_BASE}/conf/Operations_Warehouse_Django.conf
 DJANGO_SETTINGS_MODULE=Operations_Warehouse_Django.settings
