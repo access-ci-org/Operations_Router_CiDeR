@@ -505,7 +505,7 @@ class Router():
                 elif self.dest['scheme'] == 'warehouse':
                     pa_application=os.path.basename(__file__)
                     pa_function='Operations_Router_CiDeR'
-                    pa_topic = 'Resource Description Repository'
+                    pa_topic = 'Cyberinfrastructure Description'
                     pa_about = ','.join(self.AFFILIATIONS)
                     pa_id = '{}:{}:{}'.format(pa_application, pa_function, pa_topic)
                     pa = ProcessingActivity(pa_application, pa_function, pa_id , pa_topic, pa_about)
