@@ -164,7 +164,10 @@ class Router():
             self.logger.error('Source and Destination can not both be a {file}')
             sys.exit(1)
 
-        self.AFFILIATIONS = self.config.get('AFFILIATIONS', ['XSEDE'])  # Default to XSEDE only
+        # The affiliations we are processing
+        self.AFFILIATIONS = set(self.config.get('AFFILIATIONS', ['ACCESS', 'XSEDE']))
+        # The affiliations for a resource compiled at load time
+        self.resource_AFFILIATIONS = {}
         
         if self.args.daemonaction == 'start':
             if self.src['scheme'] not in ['http', 'https'] or self.dest['scheme'] not in ['warehouse']:
@@ -204,11 +207,19 @@ class Router():
         infra_all = []
         for AFF in self.AFFILIATIONS:
             infra_aff = self.Retrieve_Affiliation_Infrastructure(url, affiliation=AFF)
-            if infra_aff:
-                if 'resources' not in infra_aff:
-                    self.logger.error('CiDeR JSON response (affiliation={}) is missing a \'resources\' element'.format(AFF))
-                else:
-                    infra_all.extend(infra_aff['resources'])
+            if not infra_aff:
+                continue
+            if 'resources' not in infra_aff:
+                self.logger.error('CiDeR JSON response (affiliation={}) is missing a \'resources\' element'.format(AFF))
+                continue
+            for item in infra_aff['resources']:
+                # Collapses multiple occurances of a rsource into one resource and accumulate its affiliations for later
+                id = item['resourceId']
+                if id in self.resource_AFFILIATIONS:
+                    self.resource_AFFILIATIONS[id].add(AFF)
+                    continue
+                self.resource_AFFILIATIONS[id] = set([AFF])
+                infra_all.append(item)
         return(infra_all)
     
     def Retrieve_Affiliation_Infrastructure(self, url, affiliation='XSEDE'):
@@ -248,8 +259,9 @@ class Router():
     def Analyze_Info(self, info_json):
         maxlen = {}
         for p_res in info_json:  # Parent resources
-            if any(x not in p_res for x in ('project_affiliation', 'resource_id', 'info_resourceid')) \
-                    or p_res['project_affiliation'] not in self.AFFILIATIONS \
+            affiliations = set(p_res.get('projectAffiliation').split(','))
+            if any(x not in p_res for x in ('projectAffiliation', 'resource_id', 'info_resourceid')) \
+                    or not affiliations & self.AFFILIATIONS \
                     or str(p_res['info_resourceid']).lower() == 'none' \
                     or p_res['info_resourceid'] == '':
                 self.stats['Skip'] += 1
@@ -335,6 +347,9 @@ class Router():
                     or p_res['info_resourceid'] == '':
                 self.stats['Skip'] += 1
                 continue
+            
+            # Globally aggregated resource affiliations
+            affiliations = self.resource_AFFILIATIONS['resource_id']
 
             # Attributes that don't have their own model field get put in the other_attributes field
             other_attributes=p_res.copy()
@@ -364,7 +379,7 @@ class Router():
                                         'parent_resource': None,
                                         'recommended_use': None,
                                         'access_description': None,
-                                        'project_affiliation': p_res['project_affiliation'],
+                                        'project_affiliation': affiliations,
                                         'provider_level': p_res['provider_level'],
                                         'other_attributes': other_attributes,
                                         'updated_at': p_res['updated_at']
@@ -403,7 +418,7 @@ class Router():
                                                 'parent_resource': s_res['parent_resource']['resource_id'],
                                                 'recommended_use': s_res['recommended_use'],
                                                 'access_description': s_res['access_description'],
-                                                'project_affiliation': s_res.get('project_affiliation', p_res['project_affiliation']),
+                                                'project_affiliation': affiliations,
                                                 'provider_level': s_res.get('provider_level', p_res['provider_level']),
                                                 'other_attributes': other_attributes,
                                                 'updated_at': s_res['updated_at']

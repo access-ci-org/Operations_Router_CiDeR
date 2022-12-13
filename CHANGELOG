@@ -1,5 +1,6 @@
-2.0.1 TBD JP
+v2.1.0 20221213 JP
   - Fix Processing topic description 
+  - Merge affiliations into comma separated project_affiliation
 
 2.0.0 20221018 JP
   - Forked XSEDE router and modified for ACCESS
