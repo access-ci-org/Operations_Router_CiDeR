@@ -1,3 +1,6 @@
+v2.1.1 20221214 JP
+  - Fix affiliations: process each resource once with a comma separated list of affiliations
+
 v2.1.0 20221213 JP
   - Fix Processing topic description 
   - Merge affiliations into comma separated project_affiliation

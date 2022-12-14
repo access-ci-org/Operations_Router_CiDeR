@@ -214,7 +214,7 @@ class Router():
                 continue
             for item in infra_aff['resources']:
                 # Collapses multiple occurances of a rsource into one resource and accumulate its affiliations for later
-                id = item['resourceId']
+                id = item['resource_id']
                 if id in self.resource_AFFILIATIONS:
                     self.resource_AFFILIATIONS[id].add(AFF)
                     continue
@@ -258,16 +258,21 @@ class Router():
 
     def Analyze_Info(self, info_json):
         maxlen = {}
-        for p_res in info_json:  # Parent resources
-            affiliations = set(p_res.get('projectAffiliation').split(','))
-            if any(x not in p_res for x in ('projectAffiliation', 'resource_id', 'info_resourceid')) \
-                    or not affiliations & self.AFFILIATIONS \
+        for p_res in info_json:  # Iterating over parent resources
+            # Require affiliation, a resource_id, and an information services ResourceID
+            if any(x not in p_res for x in ('project_affiliation', 'resource_id', 'info_resourceid')) \
                     or str(p_res['info_resourceid']).lower() == 'none' \
                     or p_res['info_resourceid'] == '':
                 self.stats['Skip'] += 1
                 continue
+            id = p_res['resource_id']
+            affiliations = self.resource_AFFILIATIONS[id]
+            if not affiliations & self.AFFILIATIONS: # Intersection
+                self.stats['Skip'] += 1
+                continue
+
             self.stats['Update'] += 1
-            self.logger.info('ID={}, ResourceID={}, Level="{}", Description="{}"'.format(p_res['resource_id'], p_res['info_resourceid'], p_res['provider_level'], p_res['resource_descriptive_name']))
+            self.logger.info('ID={}, ResourceID={}, Level="{}", Description="{}"'.format(id, p_res['info_resourceid'], p_res['provider_level'], p_res['resource_descriptive_name']))
             
             self.sub = {}   # Sub-resource attributes go here
             for subtype in ['compute_resources', 'storage_resources', 'grid_resources', 'other_resources']:
@@ -339,18 +344,20 @@ class Router():
         for item in CiderInfrastructure.objects.all():
             self.cur[item.cider_resource_id] = item
 
-        for p_res in info_json:
-            # Require affiliation=XSEDE, a resource_id, and an information services ResourceID
+        for p_res in info_json:  # Iterating over parent resources
+            # Require affiliation, a resource_id, and an information services ResourceID
             if any(x not in p_res for x in ('project_affiliation', 'resource_id', 'info_resourceid')) \
-                    or p_res['project_affiliation'] not in self.AFFILIATIONS \
                     or str(p_res['info_resourceid']).lower() == 'none' \
                     or p_res['info_resourceid'] == '':
                 self.stats['Skip'] += 1
                 continue
+            id = p_res['resource_id']
+            affiliations = self.resource_AFFILIATIONS[id]
+            if not affiliations & self.AFFILIATIONS: # Intersection
+                self.stats['Skip'] += 1
+                continue
             
-            # Globally aggregated resource affiliations
-            affiliations = self.resource_AFFILIATIONS['resource_id']
-
+            infoid = p_res['info_resourceid']
             # Attributes that don't have their own model field get put in the other_attributes field
             other_attributes=p_res.copy()
             self.sub = {}   # Sub-resource attributes go here
@@ -364,10 +371,10 @@ class Router():
             p_latest_status = self.latest_status(p_res['current_statuses'])
             try:
                 model, created = CiderInfrastructure.objects.update_or_create(
-                                    cider_resource_id=p_res['resource_id'],
+                                    cider_resource_id=id,
                                     defaults = {
-                                        'info_resourceid': p_res['info_resourceid'],
-                                        'info_siteid': p_res['info_resourceid'][p_res['info_resourceid'].find('.')+1:],
+                                        'info_resourceid': infoid,
+                                        'info_siteid': infoid[infoid.find('.')+1:],
                                         'cider_type': 'resource',
                                         'resource_descriptive_name': p_res['resource_descriptive_name'],
                                         'resource_description': p_res['resource_description'],
@@ -379,17 +386,17 @@ class Router():
                                         'parent_resource': None,
                                         'recommended_use': None,
                                         'access_description': None,
-                                        'project_affiliation': affiliations,
+                                        'project_affiliation': ','.join(affiliations),
                                         'provider_level': p_res['provider_level'],
                                         'other_attributes': other_attributes,
                                         'updated_at': p_res['updated_at']
                                     })
                 model.save()
-                self.logger.debug('Base ID={}, ResourceID={}'.format(p_res['resource_id'], p_res['info_resourceid']))
-                self.new[p_res['resource_id']]=model
+                self.logger.debug('Base ID={}, ResourceID={}'.format(id, infoid))
+                self.new[id]=model
                 self.stats['Update'] += 1
             except (DataError, IntegrityError) as e:
-                msg = '{} saving resource_id={} ({}): {}'.format(type(e).__name__, p_res['resource_id'], p_res['info_resourceid'], e.message)
+                msg = '{} saving resource_id={} ({}): {}'.format(type(e).__name__, id, infoid, e.message)
                 self.logger.error(msg)
                 return(False, msg)
 
@@ -418,7 +425,7 @@ class Router():
                                                 'parent_resource': s_res['parent_resource']['resource_id'],
                                                 'recommended_use': s_res['recommended_use'],
                                                 'access_description': s_res['access_description'],
-                                                'project_affiliation': affiliations,
+                                                'project_affiliation': ','.join(affiliations),
                                                 'provider_level': s_res.get('provider_level', p_res['provider_level']),
                                                 'other_attributes': other_attributes,
                                                 'updated_at': s_res['updated_at']
