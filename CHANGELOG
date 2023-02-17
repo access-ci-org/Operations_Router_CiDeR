@@ -1,3 +1,6 @@
+v2.1.2 20230217 JP
+  - Newer Operations_Warehouse_Django changes DJANGO_CONF to APP_CONFIG
+
 v2.1.1 20221214 JP
   - Fix affiliations: process each resource once with a comma separated list of affiliations
 

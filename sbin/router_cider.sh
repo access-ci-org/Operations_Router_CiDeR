@@ -37,7 +37,7 @@ export LD_LIBRARY_PATH=${PYTHON_BASE}/lib
 source ${APP_HOME}/python/bin/activate
 
 export PYTHONPATH=${APP_SOURCE}/lib:${WAREHOUSE_DJANGO}
-export DJANGO_CONF=${APP_HOME}/conf/django_prod_router.conf
+export APP_CONFIG=${APP_HOME}/conf/django_prod_router.conf
 export DJANGO_SETTINGS_MODULE=Operations_Warehouse_Django.settings
 
 do_start () {
