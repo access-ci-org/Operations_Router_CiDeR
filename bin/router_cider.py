@@ -275,7 +275,7 @@ class Router():
             self.logger.info('ID={}, ResourceID={}, Level="{}", Description="{}"'.format(id, p_res['info_resourceid'], p_res['provider_level'], p_res['resource_descriptive_name']))
             
             self.sub = {}   # Sub-resource attributes go here
-            for subtype in ['compute_resources', 'storage_resources', 'grid_resources', 'other_resources']:
+            for subtype in ['compute_resources', 'storage_resources', 'grid_resources', 'other_resources', 'online_service_resources']:
                 if subtype in p_res:
                     self.sub[subtype]=p_res[subtype]
             
@@ -328,15 +328,17 @@ class Router():
             sys.exit(1)
 
     def Warehouse_Info(self, info_json):
-        id_lookup = {'compute_resources':   'compute_resource_id',
+        id_lookup = {'compute_resources':  'compute_resource_id',
                     'other_resources':     'other_resource_id',
                     'grid_resources':      'grid_resource_id',
                     'storage_resources':   'storage_resource_id',
+                    'online_service_resources': 'online_service_resource_id',
                 }
         type_lookup = {'compute_resources': 'compute',
-                    'other_resources':     'other',
-                    'grid_resources':      'grid',
-                    'storage_resources':   'storage',
+                    'other_resources':      'other',
+                    'grid_resources':       'grid',
+                    'storage_resources':    'storage',
+                    'online_service_resources': 'online_service',
                 }
 
         self.cur = {}   # Resources currently in database
@@ -361,7 +363,7 @@ class Router():
             # Attributes that don't have their own model field get put in the other_attributes field
             other_attributes=p_res.copy()
             self.sub = {}   # Sub-resource attributes go here
-            for subtype in ['compute_resources', 'storage_resources', 'grid_resources', 'other_resources']:
+            for subtype in ['compute_resources', 'storage_resources', 'grid_resources', 'other_resources', 'online_service_resources']:
                 if subtype in p_res:
                     self.sub[subtype]=p_res[subtype]
                     other_attributes.pop(subtype, None)

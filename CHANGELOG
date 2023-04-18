@@ -1,3 +1,6 @@
+v2.2.0 20230187 JP
+  - Process new online_service_resources
+
 v2.1.2 20230217 JP
   - Newer Operations_Warehouse_Django changes DJANGO_CONF to APP_CONFIG
 
