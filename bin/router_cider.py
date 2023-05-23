@@ -166,17 +166,16 @@ class Router():
 
         # The affiliations we are processing
         self.AFFILIATIONS = set(self.config.get('AFFILIATIONS', ['ACCESS', 'XSEDE']))
-        # The affiliations for a resource compiled at load time
-        self.resource_AFFILIATIONS = {}
         
         if self.args.daemonaction == 'start':
             if self.src['scheme'] not in ['http', 'https'] or self.dest['scheme'] not in ['warehouse']:
                 self.logger.error('Can only daemonize when source=[http|https] and destination=warehouse')
                 sys.exit(1)
 
-        self.logger.info('Source: ' + self.src['display'])
-        self.logger.info('Destination: ' + self.dest['display'])
-        self.logger.info('Config: ' + self.config_file)
+        self.logger.info('Source: {}'.format(self.src['display']))
+        self.logger.info('Destination: {}'.format(self.dest['display']))
+        self.logger.info('Config: {}' .format(self.config_file))
+        self.logger.info('Log Level: {}({})'.format(loglevel_str, loglevel_num))
         self.logger.info('Affiliations: ' + ', '.join(self.AFFILIATIONS))
 
     def SaveDaemonStdOut(self, path):
@@ -204,22 +203,27 @@ class Router():
         sys.exit(rc)
 
     def Retrieve_Infrastructure(self, url):
+        # The affiliations for a resource compiled at load time
+        self.resource_AFFILIATIONS = {}
+
         infra_all = []
         for AFF in self.AFFILIATIONS:
             infra_aff = self.Retrieve_Affiliation_Infrastructure(url, affiliation=AFF)
             if not infra_aff:
                 continue
             if 'resources' not in infra_aff:
-                self.logger.error('CiDeR JSON response (affiliation={}) is missing a \'resources\' element'.format(AFF))
+                self.logger.error('CiDeR JSON response for affiliation={} is missing a \'resources\' element'.format(AFF))
                 continue
+            self.logger.debug('Retrieved affiliation={} {}/items'.format(AFF, len(infra_aff['resources'])))
             for item in infra_aff['resources']:
-                # Collapses multiple occurances of a rsource into one resource and accumulate its affiliations for later
+                # Collapses multiple occurances of a resource into one resource and accumulate its affiliations for later
                 id = item['resource_id']
                 if id in self.resource_AFFILIATIONS:
                     self.resource_AFFILIATIONS[id].add(AFF)
                     continue
                 self.resource_AFFILIATIONS[id] = set([AFF])
-                infra_all.append(item)
+                infra_all.append(item)  # We only need each item once even if it has multiple affiliations
+        self.logger.debug('Retrieved from all affiliations {}/items'.format(len(infra_all)))
         return(infra_all)
     
     def Retrieve_Affiliation_Infrastructure(self, url, affiliation='XSEDE'):
@@ -345,6 +349,7 @@ class Router():
         self.new = {}   # New resources in document
         for item in CiderInfrastructure.objects.all():
             self.cur[item.cider_resource_id] = item
+        self.logger.debug('Retrieved from database {}/items'.format(len(self.cur)))
 
         for p_res in info_json:  # Iterating over parent resources
             # Require affiliation, a resource_id, and an information services ResourceID
@@ -394,7 +399,7 @@ class Router():
                                         'updated_at': p_res['updated_at']
                                     })
                 model.save()
-                self.logger.debug('Base ID={}, ResourceID={}'.format(id, infoid))
+                self.logger.debug('Base ID={}, ResourceID={}, created={}'.format(id, infoid, created))
                 self.new[id]=model
                 self.stats['Update'] += 1
             except (DataError, IntegrityError) as e:
@@ -433,7 +438,7 @@ class Router():
                                                 'updated_at': s_res['updated_at']
                                             })
                         model.save()
-                        self.logger.debug(' Sub ID={}, ResourceID={}, Type={}'.format(s_res[id_lookup[subtype]], s_res['parent_resource']['info_resourceid'], type_lookup[subtype]))
+                        self.logger.debug(' Sub ID={}, ResourceID={}, Type={}, created={}'.format(s_res[id_lookup[subtype]], s_res['parent_resource']['info_resourceid'], type_lookup[subtype], created))
                         self.new[s_res[id_lookup[subtype]]]=model
                         self.stats['Update'] += 1
                     except (DataError, IntegrityError) as e:

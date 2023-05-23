@@ -30,7 +30,7 @@ if [[ "$1" != --pdb && "$2" != --pdb && "$3" != --pdb && "$4" != --pdb ]]; then
 fi
 
 APP_BIN=${APP_SOURCE}/bin/${APP_NAME}.py
-APP_OPTS="-l info -c ${APP_HOME}/conf/${APP_NAME}.conf"
+APP_OPTS="-c ${APP_HOME}/conf/${APP_NAME}.conf"
 
 PYTHON_BIN=python3
 export LD_LIBRARY_PATH=${PYTHON_BASE}/lib

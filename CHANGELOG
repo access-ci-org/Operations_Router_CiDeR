@@ -1,3 +1,7 @@
+v2.3.0 20230523 JP
+  - Remove hardcoded logging level
+  - Improved debug logging
+
 v2.2.0 20230187 JP
   - Process new online_service_resources
 
