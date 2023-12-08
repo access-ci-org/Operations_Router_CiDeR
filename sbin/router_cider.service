@@ -1,5 +1,5 @@
 [Unit]
-Description=ACCESS CONECT Information Sharing Platform CiDeR Router
+Description=Information Sharing Platform CiDeR Router
 After=network.target remote-fs.target nss-lookup.target
 
 [Service]

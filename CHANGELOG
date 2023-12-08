@@ -1,3 +1,6 @@
+v2.4.1 20231208 JP
+  - Fix all the sbin/ scripts and files for to latest approach used in resource_v3
+
 v2.4.0 20231208 JP
   - Convert to new CiDeR resource response format with typed resources and no sub-resources
   - Upgrade daemonaction(obsolete) and --once to latest approach used in resource_v3
