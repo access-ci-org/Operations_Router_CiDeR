@@ -1,3 +1,12 @@
+v2.4.0 20231208 JP
+  - Convert to new CiDeR resource response format with typed resources and no sub-resources
+  - Upgrade daemonaction(obsolete) and --once to latest approach used in resource_v3
+  - Convert stats to use Counter
+  - Remove some straggling XSEDE references
+  - Other small coding improvements
+  - Implement temporary CiDeR bug workaround where info_resourceid and info_sideid len > 40
+    Using parent values which are actually self references
+
 v2.3.0 20230523 JP
   - Remove hardcoded logging level
   - Improved debug logging

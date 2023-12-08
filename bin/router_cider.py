@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+from collections import Counter
 from datetime import datetime, timezone
 import http.client as httplib
 import json
@@ -35,20 +36,13 @@ def eprint(*args, **kwargs):
 class Router():
     def __init__(self):
         parser = argparse.ArgumentParser(epilog='File SRC|DEST syntax: file:<file path and name')
-        parser.add_argument('daemonaction', nargs='?', choices=('start', 'stop', 'restart'), \
-                            help='{start, stop, restart} daemon')
-        parser.add_argument('-s', '--source', action='store', dest='src', \
-                            help='Messages source {file, http[s]} (default=file)')
-        parser.add_argument('-d', '--destination', action='store', dest='dest', \
-                            help='Message destination {file, analyze, or warehouse} (default=analyze)')
-        parser.add_argument('--daemon', action='store_true', \
-                            help='Daemonize execution')
-        parser.add_argument('-l', '--log', action='store', \
-                            help='Logging level (default=warning)')
-        parser.add_argument('-c', '--config', action='store', default='./router_cider.conf', \
-                            help='Configuration file default=./router_cider.conf')
-        parser.add_argument('--pdb', action='store_true', \
-                            help='Run with Python debugger')
+        parser.add_argument('--once', action='store_true', help='Run once and exit, or run continuous with sleep between interations (default)')
+        parser.add_argument('--daemon', action='store_true', help='Daemonize execution')
+        parser.add_argument('-s', '--source', action='store', dest='src', help='Messages source {file, http[s]} (default=file)')
+        parser.add_argument('-d', '--destination', action='store', dest='dest', help='Message destination {file, analyze, or warehouse} (default=analyze)')
+        parser.add_argument('-l', '--log', action='store', help='Logging level (default=warning)')
+        parser.add_argument('-c', '--config', action='store', default='./router_cider.conf', help='Configuration file default=./router_cider.conf')
+        parser.add_argument('--pdb', action='store_true', help='Run with Python debugger')
         self.args = parser.parse_args()
 
         # Trace for debugging as early as possible
@@ -81,10 +75,8 @@ class Router():
         loglevel_num = getattr(logging, loglevel_str, None)
         self.logger = logging.getLogger('DaemonLog')
         self.logger.setLevel(loglevel_num)
-        self.formatter = logging.Formatter(fmt='%(asctime)s.%(msecs)03d %(levelname)s %(message)s', \
-                                           datefmt='%Y/%m/%d %H:%M:%S')
-        self.handler = logging.handlers.TimedRotatingFileHandler(self.config['LOG_FILE'], \
-            when='W6', backupCount=999, utc=True)
+        self.formatter = logging.Formatter(fmt='%(asctime)s.%(msecs)03d %(levelname)s %(message)s', datefmt='%Y/%m/%d %H:%M:%S')
+        self.handler = logging.handlers.TimedRotatingFileHandler(self.config['LOG_FILE'], when='W6', backupCount=999, utc=True)
         self.handler.setFormatter(self.formatter)
         self.logger.addHandler(self.handler)
 
@@ -99,8 +91,8 @@ class Router():
         signal.signal(signal.SIGINT, self.exit_signal)
         signal.signal(signal.SIGTERM, self.exit_signal)
 
-        self.logger.info('Starting program=%s pid=%s, uid=%s(%s)' % \
-                     (os.path.basename(__file__), os.getpid(), os.geteuid(), pwd.getpwuid(os.geteuid()).pw_name))
+        self.logger.info('Starting program={} pid={}, uid={}({})'.format(os.path.basename(__file__),
+            os.getpid(), os.geteuid(), pwd.getpwuid(os.geteuid()).pw_name))
 
         self.src = {}
         self.dest = {}
@@ -110,13 +102,6 @@ class Router():
         self.peak_sleep = 10 * 60        # 10 minutes in seconds during peak business hours
         self.off_sleep = 60 * 60         # 60 minutes in seconds during off hours
         self.max_stale = 24 * 60 * 60    # 24 hours in seconds force refresh
-        # These attributes have their own database column
-        # Some fields exist in both parent and sub-resources, while others only in one
-        # Those in one will be left empty in the other, or inherit from the parent
-        self.have_column = ['resource_id', 'info_resourceid',
-                            'resource_descriptive_name', 'resource_description',
-                            'project_affiliation', 'provider_level',
-                            'resource_status', 'current_statuses', 'updated_at']
         default_file = 'file:./cider_infrastructure.json'
 
         # Verify arguments and parse compound arguments
@@ -165,18 +150,24 @@ class Router():
             sys.exit(1)
 
         # The affiliations we are processing
-        self.AFFILIATIONS = set(self.config.get('AFFILIATIONS', ['ACCESS', 'XSEDE']))
+        self.AFFILIATIONS = set(self.config.get('AFFILIATIONS', ['ACCESS']))
         
-        if self.args.daemonaction == 'start':
-            if self.src['scheme'] not in ['http', 'https'] or self.dest['scheme'] not in ['warehouse']:
-                self.logger.error('Can only daemonize when source=[http|https] and destination=warehouse')
-                sys.exit(1)
+        if self.src['scheme'] not in ['http', 'https'] or self.dest['scheme'] not in ['warehouse']:
+            self.logger.error('Can only daemonize when source=[http|https] and destination=warehouse')
+            sys.exit(1)
 
         self.logger.info('Source: {}'.format(self.src['display']))
         self.logger.info('Destination: {}'.format(self.dest['display']))
         self.logger.info('Config: {}' .format(self.config_file))
         self.logger.info('Log Level: {}({})'.format(loglevel_str, loglevel_num))
         self.logger.info('Affiliations: ' + ', '.join(self.AFFILIATIONS))
+
+        # These attributes have their own database column
+        self.model_fields = ['resource_id', 'info_resourceid', 'resource_type'
+                        'resource_descriptive_name', 'resource_description',
+                        'project_affiliation', 'provider_level',
+                        'resource_status', 'current_statuses', 'updated_at']
+
 
     def SaveDaemonStdOut(self, path):
         # Save daemon log file using timestamp only if it has anything unexpected in it
@@ -216,17 +207,18 @@ class Router():
                 continue
             self.logger.debug('Retrieved affiliation={} {}/items'.format(AFF, len(infra_aff['resources'])))
             for item in infra_aff['resources']:
-                # Collapses multiple occurances of a resource into one resource and accumulate its affiliations for later
+                # Collapses multiple occurances of a resource into one resource and accumulate its affiliations
                 id = item['resource_id']
                 if id in self.resource_AFFILIATIONS:
                     self.resource_AFFILIATIONS[id].add(AFF)
                     continue
+                # First occurence of a resource, add it to the infra_all results
                 self.resource_AFFILIATIONS[id] = set([AFF])
-                infra_all.append(item)  # We only need each item once even if it has multiple affiliations
+                infra_all.append(item)
         self.logger.debug('Retrieved from all affiliations {}/items'.format(len(infra_all)))
         return(infra_all)
     
-    def Retrieve_Affiliation_Infrastructure(self, url, affiliation='XSEDE'):
+    def Retrieve_Affiliation_Infrastructure(self, url, affiliation='ACCESS'):
         urlp = urlparse(url)
         if not urlp.scheme or not urlp.netloc or not urlp.path:
             self.logger.error('CiDeR URL is not valid: {}'.format(url))
@@ -247,6 +239,7 @@ class Router():
 #        ctx = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
 #   2022-10-21 JP - figure out later the appropriate level of ssl verification
         ctx = ssl.create_default_context()
+        ctx = ssl._create_unverified_context()
         conn = httplib.HTTPSConnection(host=host, port=port, context=ctx)
         conn.request('GET', urlp.path, None , headers)
         self.logger.debug('HTTP GET  {}'.format(url))
@@ -262,26 +255,21 @@ class Router():
 
     def Analyze_Info(self, info_json):
         maxlen = {}
-        for p_res in info_json:  # Iterating over parent resources
+        for p_res in info_json:  # Iterating over resources
             # Require affiliation, a resource_id, and an information services ResourceID
             if any(x not in p_res for x in ('project_affiliation', 'resource_id', 'info_resourceid')) \
                     or str(p_res['info_resourceid']).lower() == 'none' \
                     or p_res['info_resourceid'] == '':
-                self.stats['Skip'] += 1
+                self.COUNTERS.update({'Skip'})
                 continue
             id = p_res['resource_id']
             affiliations = self.resource_AFFILIATIONS[id]
             if not affiliations & self.AFFILIATIONS: # Intersection
-                self.stats['Skip'] += 1
+                self.COUNTERS.update({'Skip'})
                 continue
 
-            self.stats['Update'] += 1
+            self.COUNTERS.update({'Update'})
             self.logger.info('ID={}, ResourceID={}, Level="{}", Description="{}"'.format(id, p_res['info_resourceid'], p_res['provider_level'], p_res['resource_descriptive_name']))
-            
-            self.sub = {}   # Sub-resource attributes go here
-            for subtype in ['compute_resources', 'storage_resources', 'grid_resources', 'other_resources', 'online_service_resources']:
-                if subtype in p_res:
-                    self.sub[subtype]=p_res[subtype]
             
             for x in p_res:
                 if isinstance(p_res[x], dict):
@@ -290,7 +278,7 @@ class Router():
                     msg='list({})'.format(len(p_res[x]))
                 else:
                     msg=u'"{}"'.format(p_res[x])
-                if x in self.have_column:
+                if x in self.model_fields:
                     try:
                         if x not in maxlen or (x in maxlen and maxlen[x] <= len(p_res[x])):
                             maxlen[x] = len(p_res[x])
@@ -298,16 +286,6 @@ class Router():
                         pass
                 self.logger.debug(u'  {}={}'.format(x, msg))
             
-        for subtype in self.sub:
-            for s_res in self.sub[subtype]: # Sub resources
-                for x in s_res:
-                    if x in self.have_column:
-                        try:
-                            if x not in maxlen or (x in maxlen and maxlen[x] <= len(s_res[x])):
-                                maxlen[x] = len(s_res[x])
-                        except:
-                            pass
-
         for x in maxlen:
             self.logger.debug('Max({})={}'.format(x, maxlen[x]))
 
@@ -332,18 +310,14 @@ class Router():
             sys.exit(1)
 
     def Warehouse_Info(self, info_json):
-        id_lookup = {'compute_resources':  'compute_resource_id',
-                    'other_resources':     'other_resource_id',
-                    'grid_resources':      'grid_resource_id',
-                    'storage_resources':   'storage_resource_id',
-                    'online_service_resources': 'online_service_resource_id',
-                }
-        type_lookup = {'compute_resources': 'compute',
-                    'other_resources':      'other',
-                    'grid_resources':       'grid',
-                    'storage_resources':    'storage',
-                    'online_service_resources': 'online_service',
-                }
+        type_id_lookup = {
+            'Compute': 'compute_resource_id',
+            'Storage':    'storage_resource_id',
+            'Other':      'other_resource_id',
+            'Grid':       'grid_resource_id',
+            'Online Service': 'online_service_resource_id',
+            'Science Gateway': 'science_gateway_resource_id',
+        }
 
         self.cur = {}   # Resources currently in database
         self.new = {}   # New resources in document
@@ -351,38 +325,48 @@ class Router():
             self.cur[item.cider_resource_id] = item
         self.logger.debug('Retrieved from database {}/items'.format(len(self.cur)))
 
-        for p_res in info_json:  # Iterating over parent resources
-            # Require affiliation, a resource_id, and an information services ResourceID
+        for p_res in info_json:  # Iterating over resources
+            # Require fields
             if any(x not in p_res for x in ('project_affiliation', 'resource_id', 'info_resourceid')) \
                     or str(p_res['info_resourceid']).lower() == 'none' \
                     or p_res['info_resourceid'] == '':
-                self.stats['Skip'] += 1
+                self.COUNTERS.update({'Skip'})
                 continue
             id = p_res['resource_id']
             affiliations = self.resource_AFFILIATIONS[id]
             if not affiliations & self.AFFILIATIONS: # Intersection
-                self.stats['Skip'] += 1
+                self.COUNTERS.update({'Skip'})
                 continue
+                            
+            p_parent_resource_id = p_res['parent_resource'].get('resource_id') if 'parent_resource' in p_res else None
+            p_parent_info_resourceid = p_res['parent_resource'].get('info_resourceid') if 'parent_resource' in p_res else None
             
-            infoid = p_res['info_resourceid']
-            # Attributes that don't have their own model field get put in the other_attributes field
-            other_attributes=p_res.copy()
-            self.sub = {}   # Sub-resource attributes go here
-            for subtype in ['compute_resources', 'storage_resources', 'grid_resources', 'other_resources', 'online_service_resources']:
-                if subtype in p_res:
-                    self.sub[subtype]=p_res[subtype]
-                    other_attributes.pop(subtype, None)
-            for attrib in self.have_column:
-                other_attributes.pop(attrib, None)
+            p_info_resourceid = p_res['info_resourceid']
+            #### TEMPORARY JP 2023-11-08 ####
+            if len(p_info_resourceid) > 40 and p_parent_info_resourceid:
+                p_info_resourceid = p_parent_info_resourceid
+                self.logger.error('CiDeR bug for ID={} replacing len(info_resourceid)>40 with parent "{}"'.format(id, p_parent_info_resourceid))
 
             p_latest_status = self.latest_status(p_res['current_statuses'])
+            
+            p_info_siteid = p_info_resourceid[p_info_resourceid.find('.')+1:]
+            #### TEMPORARY JP 2023-11-08 ####
+            if len(p_info_siteid) > 40 and p_parent_info_resourceid:
+                p_info_siteid = p_parent_info_resourceid[p_parent_info_resourceid.find('.')+1:]
+                self.logger.error('CiDeR bug for ID={} replacing len(info_siteid)>40 with parent derived "{}"'.format(id, p_info_siteid))
+                
+            # All the attributes, then remove the ones that have their own field
+            other_attributes=p_res.copy()
+            for attrib in self.model_fields:
+                other_attributes.pop(attrib, None)
+
             try:
                 model, created = CiderInfrastructure.objects.update_or_create(
                                     cider_resource_id=id,
                                     defaults = {
-                                        'info_resourceid': infoid,
-                                        'info_siteid': infoid[infoid.find('.')+1:],
-                                        'cider_type': 'resource',
+                                        'info_resourceid': p_info_resourceid,
+                                        'info_siteid': p_info_siteid,
+                                        'cider_type': p_res['resource_type'],
                                         'resource_descriptive_name': p_res['resource_descriptive_name'],
                                         'resource_description': p_res['resource_description'],
                                         'resource_status': p_res['resource_status'],
@@ -390,70 +374,31 @@ class Router():
                                         'latest_status': p_latest_status,
                                         'latest_status_begin': self.latest_status_date(p_res['resource_status'], p_latest_status, 'begin'),
                                         'latest_status_end': self.latest_status_date(p_res['resource_status'], p_latest_status, 'end'),
-                                        'parent_resource': None,
-                                        'recommended_use': None,
-                                        'access_description': None,
+                                        'parent_resource': p_parent_resource_id,
+                                        'recommended_use': p_res.get('recommended_use'),
+                                        'access_description': p_res.get('access_description'),
                                         'project_affiliation': ','.join(affiliations),
                                         'provider_level': p_res['provider_level'],
                                         'other_attributes': other_attributes,
                                         'updated_at': p_res['updated_at']
                                     })
                 model.save()
-                self.logger.debug('Base ID={}, ResourceID={}, created={}'.format(id, infoid, created))
+                self.logger.debug('Base ID={}, ResourceID={}, created={}'.format(id, p_info_resourceid, created))
                 self.new[id]=model
-                self.stats['Update'] += 1
+                self.COUNTERS.update({'Update'})
             except (DataError, IntegrityError) as e:
-                msg = '{} saving resource_id={} ({}): {}'.format(type(e).__name__, id, infoid, e.message)
+                msg = '{} saving ID={} ({}): {}'.format(type(e).__name__, id, p_info_resourceid, str(e))
                 self.logger.error(msg)
                 return(False, msg)
-
-            for subtype in self.sub:
-                for s_res in self.sub[subtype]:
-                    other_attributes=s_res.copy()
-                    for attrib in [id_lookup[subtype], 'info_resourceid', 'parent_resource',
-                              'resource_descriptive_name', 'resource_description', 'access_description',
-                              'recommended_use', 'resource_status', 'current_statuses', 'updated_at']:
-                        other_attributes.pop(attrib, None)
-                    s_latest_status = self.latest_status(s_res['current_statuses'])
-                    try:
-                        model, created = CiderInfrastructure.objects.update_or_create(
-                                            cider_resource_id=s_res[id_lookup[subtype]],
-                                            defaults = {
-                                                'info_resourceid': s_res['info_resourceid'],
-                                                'info_siteid': s_res['info_resourceid'][s_res['info_resourceid'].find('.')+1:],
-                                                'cider_type': type_lookup[subtype],
-                                                'resource_descriptive_name': s_res['resource_descriptive_name'],
-                                                'resource_description': s_res['resource_description'],
-                                                'resource_status': s_res['resource_status'],
-                                                'current_statuses': ', '.join(s_res['current_statuses']),
-                                                'latest_status': s_latest_status,
-                                                'latest_status_begin': self.latest_status_date(s_res['resource_status'], s_latest_status, 'begin'),
-                                                'latest_status_end': self.latest_status_date(s_res['resource_status'], s_latest_status, 'end'),
-                                                'parent_resource': s_res['parent_resource']['resource_id'],
-                                                'recommended_use': s_res['recommended_use'],
-                                                'access_description': s_res['access_description'],
-                                                'project_affiliation': ','.join(affiliations),
-                                                'provider_level': s_res.get('provider_level', p_res['provider_level']),
-                                                'other_attributes': other_attributes,
-                                                'updated_at': s_res['updated_at']
-                                            })
-                        model.save()
-                        self.logger.debug(' Sub ID={}, ResourceID={}, Type={}, created={}'.format(s_res[id_lookup[subtype]], s_res['parent_resource']['info_resourceid'], type_lookup[subtype], created))
-                        self.new[s_res[id_lookup[subtype]]]=model
-                        self.stats['Update'] += 1
-                    except (DataError, IntegrityError) as e:
-                        msg = '{} saving resource_id={} ({}): {}'.format(type(e).__name__, s_res[id_lookup[subtype]], s_res['info_resourceid'], e.message)
-                        self.logger.error(msg)
-                        return(False, msg)
 
         for id in self.cur:
             if id not in self.new:
                 try:
                     CiderInfrastructure.objects.filter(cider_resource_id=id).delete()
-                    self.stats['Delete'] += 1
+                    self.COUNTERS.update({'Delete'})
                     self.logger.info('Deleted ID={}'.format(id))
                 except (DataError, IntegrityError) as e:
-                    self.logger.error('{} deleting ID={}: {}'.format(type(e).__name__, id, e.message))
+                    self.logger.error('{} deleting ID={}: {}'.format(type(e).__name__, id, str(e)))
         return(True, '')
             
     def latest_status(self, current_statuses):
@@ -466,7 +411,7 @@ class Router():
            return('')
 
     def latest_status_date(self, resource_status_dates, current_status, which_date):
-        # which should be 'begin' or 'end'
+        # Which should be 'begin' or 'end'
         fixed_current_status = current_status.replace('-', '_')
         key = '{}_{}_date'.format(fixed_current_status, which_date)
         if key not in resource_status_dates or resource_status_dates[key] is None:
@@ -509,17 +454,13 @@ class Router():
                     self.logger.info('REFRESH TRIGGER: DB update since last run')
                     return
             except Exception as e:
-                self.logger.error('{} parsing last_update_time={}: {}'.format(type(e).__name__, ts_json['last_update_time'], e.message))
+                self.logger.error('{} parsing last_update_time={}: {}'.format(type(e).__name__, ts_json['last_update_time'], str(e)))
                 last_db_update = None
 
     def Run(self):
         while True:
-            self.start = datetime.now(timezone.utc)
-            self.stats = {
-                'Update': 0,
-                'Delete': 0,
-                'Skip': 0,
-            }
+            loop_start_utc = datetime.now(timezone.utc)
+            self.COUNTERS = Counter()
             
             if self.src['scheme'] == 'file':
                 RAW = self.Read_Cache(self.src['path'])
@@ -540,17 +481,18 @@ class Router():
                     pa = ProcessingActivity(pa_application, pa_function, pa_id , pa_topic, pa_about)
                     (rc, warehouse_msg) = self.Warehouse_Info(RAW)
                 
-                self.end = datetime.now(timezone.utc)
-                summary_msg = 'Processed in {:.3f}/seconds: {}/updates, {}/deletes, {}/skipped'.format((self.end - self.start).total_seconds(), self.stats['Update'], self.stats['Delete'], self.stats['Skip'])
+                loop_end_utc = datetime.now(timezone.utc)
+                summary_msg = 'Processed in {:.3f}/seconds: {}/updates, {}/deletes, {}/skipped'.format((loop_end_utc - loop_start_utc).total_seconds(), self.COUNTERS['Update'], self.COUNTERS['Delete'], self.COUNTERS['Skip'])
                 self.logger.info(summary_msg)
                 if self.dest['scheme'] == 'warehouse':
                     if rc:  # No errors
                         pa.FinishActivity(rc, summary_msg)
                     else:   # Something failed, use returned message
                         pa.FinishActivity(rc, warehouse_msg)
-            if not self.args.daemonaction:
+            if self.args.once:
                 break
-            self.smart_sleep(self.start)
+            # Continuous
+            self.smart_sleep(loop_start_utc)
 
 ########## CUSTOMIZATIONS END ##########
 
