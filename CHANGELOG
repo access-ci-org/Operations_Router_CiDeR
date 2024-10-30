@@ -1,3 +1,10 @@
+v2.5.0 20241030 JP
+  - Load new CiderGroups model from new API
+  - Use urlparse for source url parsing, unfortunately destination url uses non-standard scheme 
+  - Compose last update and groups URLs by combining source URL configured CIDER_LAST_PATH, CIDER_GROUPS_PATH
+  - Make last update and groups optional if not configured with CIDER_LAST_PATH, CIDER_GROUPS_PATH
+  - Convert several functions to use urlparse urls rather than raw string urls
+
 v2.4.1 20231208 JP
   - Fix all the sbin/ scripts and files for to latest approach used in resource_v3
 

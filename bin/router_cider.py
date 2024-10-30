@@ -17,7 +17,7 @@ import signal
 import ssl
 from time import sleep
 import traceback
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunparse, urljoin
 
 import django
 django.setup()
@@ -94,43 +94,30 @@ class Router():
         self.logger.info('Starting program={} pid={}, uid={}({})'.format(os.path.basename(__file__),
             os.getpid(), os.geteuid(), pwd.getpwuid(os.geteuid()).pw_name))
 
-        self.src = {}
         self.dest = {}
-        for var in ['uri', 'scheme', 'path', 'display']: # Where <full> contains <type>:<obj>
-            self.src[var] = None
-            self.dest[var] = None
         self.peak_sleep = 10 * 60        # 10 minutes in seconds during peak business hours
         self.off_sleep = 60 * 60         # 60 minutes in seconds during off hours
         self.max_stale = 24 * 60 * 60    # 24 hours in seconds force refresh
-        default_file = 'file:./cider_infrastructure.json'
+        src_default = 'file:./cider_infrastructure.json'
+        dest_default = 'analyze'
 
         # Verify arguments and parse compound arguments
         if not getattr(self.args, 'src', None): # Tests for None and empty ''
             if 'CIDER_INFO_URL' in self.config:
                 self.args.src = self.config['CIDER_INFO_URL']
-        if not getattr(self.args, 'src', None): # Tests for None and empty ''
-            self.args.src = default_file
-        idx = self.args.src.find(':')
-        if idx > 0:
-            (self.src['scheme'], self.src['path']) = (self.args.src[0:idx], self.args.src[idx+1:])
-        else:
-            (self.src['scheme'], self.src['path']) = (self.args.src, None)
-        if self.src['scheme'] not in ['file', 'http', 'https']:
+        if not getattr(self.args, 'src', None): # Tests for None and empty '', CIDER_INFO_URL could be defined but empty
+            self.args.src = src_default
+        self.srcparsed = urlparse(self.args.src)
+        if self.srcparsed.scheme not in ['file', 'http', 'https']:
             self.logger.error('Source not {file, http, https}')
             sys.exit(1)
-        if self.src['scheme'] in ['http', 'https']:
-            if self.src['path'][0:2] != '//':
-                self.logger.error('Source URL not followed by "//"')
-                sys.exit(1)
-            self.src['path'] = self.src['path'][2:]
-        self.src['uri'] = self.args.src
-        self.src['display'] = self.args.src
+        self.srcdisplay = urlunparse(self.srcparsed)
 
         if not getattr(self.args, 'dest', None): # Tests for None and empty ''
             if 'DESTINATION' in self.config:
                 self.args.dest = self.config['DESTINATION']
-        if not getattr(self.args, 'dest', None): # Tests for None and empty ''
-            self.args.dest = 'analyze'
+        if not getattr(self.args, 'dest', None): # Tests for None and empty '', DESTINATION could be defined but empty
+            self.args.dest = dest_default
         idx = self.args.dest.find(':')
         if idx > 0:
             (self.dest['scheme'], self.dest['path']) = (self.args.dest[0:idx], self.args.dest[idx+1:])
@@ -141,33 +128,48 @@ class Router():
             sys.exit(1)
         self.dest['uri'] = self.args.dest
         if self.dest['scheme'] == 'warehouse':
-            self.dest['display'] = '{}@database={}'.format(self.dest['scheme'], settings.DATABASES['default']['HOST'])
+            self.destdisplay = '{}@database={}'.format(self.dest['scheme'], settings.DATABASES['default']['HOST'])
         else:
-            self.dest['display'] = self.args.dest
+            self.destdisplay = self.args.dest
 
-        if self.src['scheme'] in ['file'] and self.dest['scheme'] in ['file']:
+        if self.srcparsed.scheme in ['file'] and self.dest['scheme'] in ['file']:
             self.logger.error('Source and Destination can not both be a {file}')
             sys.exit(1)
-
+        
         # The affiliations we are processing
         self.AFFILIATIONS = set(self.config.get('AFFILIATIONS', ['ACCESS']))
         
-        if self.src['scheme'] not in ['http', 'https'] or self.dest['scheme'] not in ['warehouse']:
+        if self.srcparsed.scheme not in ['http', 'https'] or self.dest['scheme'] not in ['warehouse']:
             self.logger.error('Can only daemonize when source=[http|https] and destination=warehouse')
             sys.exit(1)
+        # Optional for now
+#        if self.srcparsed.scheme in ['http', 'https'] and not self.config.get('CIDER_GROUPS_PATH'):
+#            self.logger.error('Required config missing: CIDER_GROUPS_PATH')
+#            sys.exit(1)
 
-        self.logger.info('Source: {}'.format(self.src['display']))
-        self.logger.info('Destination: {}'.format(self.dest['display']))
+        # If path to the CiDeR last update API is set, use it to determine if there are resource updates
+        if self.srcparsed.scheme in ['http', 'https'] and self.config.get('CIDER_LAST_PATH'):
+            self.lasturldisplay = urljoin(urlunparse(self.srcparsed), self.config.get('CIDER_LAST_PATH'))
+            self.lasturl = urlparse(self.lasturldisplay)
+        if self.srcparsed.scheme in ['http', 'https'] and self.config.get('CIDER_GROUPS_PATH'):
+            self.groupsurldisplay = urljoin(urlunparse(self.srcparsed), self.config.get('CIDER_GROUPS_PATH'))
+            self.groupsurl = urlparse(self.groupsurldisplay)
+
+        self.logger.info('Source: {}'.format(self.srcdisplay))
+        self.logger.info('Destination: {}'.format(self.destdisplay))
+        if hasattr(self, 'lasturldisplay'): self.logger.info('Last URL: {}'.format(self.lasturldisplay))
+        if hasattr(self, 'groupsurldisplay'): self.logger.info('Groups URL: {}'.format(self.groupsurldisplay))
         self.logger.info('Config: {}' .format(self.config_file))
         self.logger.info('Log Level: {}({})'.format(loglevel_str, loglevel_num))
         self.logger.info('Affiliations: ' + ', '.join(self.AFFILIATIONS))
 
         # These attributes have their own database column
-        self.model_fields = ['resource_id', 'info_resourceid', 'resource_type'
+        self.resource_model_fields = ['resource_id', 'info_resourceid', 'resource_type'
                         'resource_descriptive_name', 'resource_description',
                         'project_affiliation', 'provider_level',
                         'resource_status', 'current_statuses', 'updated_at']
-
+        self.group_model_fields = ['info_groupid', 'name', 'description',
+                        'group_logo_url', 'group_types', 'info_resourceids']
 
     def SaveDaemonStdOut(self, path):
         # Save daemon log file using timestamp only if it has anything unexpected in it
@@ -193,13 +195,13 @@ class Router():
             self.logger.error('Exiting with rc={}'.format(rc))
         sys.exit(rc)
 
-    def Retrieve_Infrastructure(self, url):
+    def Retrieve_Infrastructure(self, parsedurl):
         # The affiliations for a resource compiled at load time
         self.resource_AFFILIATIONS = {}
 
         infra_all = []
         for AFF in self.AFFILIATIONS:
-            infra_aff = self.Retrieve_Affiliation_Infrastructure(url, affiliation=AFF)
+            infra_aff = self.Retrieve_CiDeR_by_Affiliation(parsedurl, affiliation=AFF)
             if not infra_aff:
                 continue
             if 'resources' not in infra_aff:
@@ -218,21 +220,14 @@ class Router():
         self.logger.debug('Retrieved from all affiliations {}/items'.format(len(infra_all)))
         return(infra_all)
     
-    def Retrieve_Affiliation_Infrastructure(self, url, affiliation='ACCESS'):
-        urlp = urlparse(url)
-        if not urlp.scheme or not urlp.netloc or not urlp.path:
+    def Retrieve_CiDeR_by_Affiliation(self, parsedurl, affiliation='ACCESS'):
+        if not parsedurl.scheme or not parsedurl.netloc or not parsedurl.path:
             self.logger.error('CiDeR URL is not valid: {}'.format(url))
             sys.exit(1)
-        if urlp.scheme not in ['http', 'https']:
+        if parsedurl.scheme not in ['http', 'https']:
             self.logger.error('CiDeR URL scheme is not valid: {}'.format(url))
             sys.exit(1)
-        if ':' in urlp.netloc:
-            (host, port) = urlp.netloc.split(':')
-        else:
-            (host, port) = (urlp.netloc, '')
-        if not port:
-            port = '80' if urlp.scheme == 'http' else '443'     # Default is HTTPS/443
-        
+        port = parsedurl.port or '80' if parsedurl.scheme == 'http' else '443'     # Default is HTTPS/443
         headers = {'Content-type': 'application/json',
                     'XA-CLIENT': affiliation,
                     'XA-KEY-FORMAT': 'underscore'}
@@ -240,9 +235,9 @@ class Router():
 #   2022-10-21 JP - figure out later the appropriate level of ssl verification
         ctx = ssl.create_default_context()
         ctx = ssl._create_unverified_context()
-        conn = httplib.HTTPSConnection(host=host, port=port, context=ctx)
-        conn.request('GET', urlp.path, None , headers)
-        self.logger.debug('HTTP GET  {}'.format(url))
+        conn = httplib.HTTPSConnection(host=parsedurl.netloc, port=port, context=ctx)
+        conn.request('GET', parsedurl.path, None , headers)
+        self.logger.debug('HTTP GET {}'.format(parsedurl.path))
         response = conn.getresponse()
         result = response.read()
         self.logger.debug('HTTP RESP {} {} (returned {}/bytes)'.format(response.status, response.reason, len(result)))
@@ -260,15 +255,15 @@ class Router():
             if any(x not in p_res for x in ('project_affiliation', 'resource_id', 'info_resourceid')) \
                     or str(p_res['info_resourceid']).lower() == 'none' \
                     or p_res['info_resourceid'] == '':
-                self.COUNTERS.update({'Skip'})
+                self.RCOUNTERS.update({'Skip'})
                 continue
             id = p_res['resource_id']
             affiliations = self.resource_AFFILIATIONS[id]
             if not affiliations & self.AFFILIATIONS: # Intersection
-                self.COUNTERS.update({'Skip'})
+                self.RCOUNTERS.update({'Skip'})
                 continue
 
-            self.COUNTERS.update({'Update'})
+            self.RCOUNTERS.update({'Update'})
             self.logger.info('ID={}, ResourceID={}, Level="{}", Description="{}"'.format(id, p_res['info_resourceid'], p_res['provider_level'], p_res['resource_descriptive_name']))
             
             for x in p_res:
@@ -278,7 +273,7 @@ class Router():
                     msg='list({})'.format(len(p_res[x]))
                 else:
                     msg=u'"{}"'.format(p_res[x])
-                if x in self.model_fields:
+                if x in self.resource_model_fields:
                     try:
                         if x not in maxlen or (x in maxlen and maxlen[x] <= len(p_res[x])):
                             maxlen[x] = len(p_res[x])
@@ -309,7 +304,7 @@ class Router():
             self.logger.error('Error "{}" parsing file={}'.format(e, file))
             sys.exit(1)
 
-    def Warehouse_Info(self, info_json):
+    def Warehouse_Resources(self, info_json):
         type_id_lookup = {
             'Compute': 'compute_resource_id',
             'Storage':    'storage_resource_id',
@@ -323,19 +318,19 @@ class Router():
         self.new = {}   # New resources in document
         for item in CiderInfrastructure.objects.all():
             self.cur[item.cider_resource_id] = item
-        self.logger.debug('Retrieved from database {}/items'.format(len(self.cur)))
+        self.logger.debug('Retrieved from database {}/resources'.format(len(self.cur)))
 
         for p_res in info_json:  # Iterating over resources
             # Require fields
             if any(x not in p_res for x in ('project_affiliation', 'resource_id', 'info_resourceid')) \
                     or str(p_res['info_resourceid']).lower() == 'none' \
                     or p_res['info_resourceid'] == '':
-                self.COUNTERS.update({'Skip'})
+                self.RCOUNTERS.update({'Skip'})
                 continue
             id = p_res['resource_id']
             affiliations = self.resource_AFFILIATIONS[id]
             if not affiliations & self.AFFILIATIONS: # Intersection
-                self.COUNTERS.update({'Skip'})
+                self.RCOUNTERS.update({'Skip'})
                 continue
                             
             p_parent_resource_id = p_res['parent_resource'].get('resource_id') if 'parent_resource' in p_res else None
@@ -357,7 +352,7 @@ class Router():
                 
             # All the attributes, then remove the ones that have their own field
             other_attributes=p_res.copy()
-            for attrib in self.model_fields:
+            for attrib in self.resource_model_fields:
                 other_attributes.pop(attrib, None)
 
             try:
@@ -385,7 +380,7 @@ class Router():
                 model.save()
                 self.logger.debug('Base ID={}, ResourceID={}, created={}'.format(id, p_info_resourceid, created))
                 self.new[id]=model
-                self.COUNTERS.update({'Update'})
+                self.RCOUNTERS.update({'Update'})
             except (DataError, IntegrityError) as e:
                 msg = '{} saving ID={} ({}): {}'.format(type(e).__name__, id, p_info_resourceid, str(e))
                 self.logger.error(msg)
@@ -395,7 +390,51 @@ class Router():
             if id not in self.new:
                 try:
                     CiderInfrastructure.objects.filter(cider_resource_id=id).delete()
-                    self.COUNTERS.update({'Delete'})
+                    self.RCOUNTERS.update({'Delete'})
+                    self.logger.info('Deleted ID={}'.format(id))
+                except (DataError, IntegrityError) as e:
+                    self.logger.error('{} deleting ID={}: {}'.format(type(e).__name__, id, str(e)))
+        return(True, '')
+            
+    def Warehouse_Groups(self, info_json):
+        self.cur = {}   # Groups currently in database
+        self.new = {}   # New groups in document
+        for item in CiderGroups.objects.all():
+            self.cur[item.info_groupid] = item
+        self.logger.debug('Retrieved from database {}/groups'.format(len(self.cur)))
+
+        for p_grp in info_json['groups']:  # Iterating over groups
+            id = p_grp['info_groupid']
+            # All the attributes, then remove the ones that have their own field
+            other_attributes=p_grp.copy()
+            for attrib in self.group_model_fields:
+                other_attributes.pop(attrib, None)
+
+            try:
+                model, created = CiderGroups.objects.update_or_create(
+                                    info_groupid=id,
+                                    defaults = {
+                                        'group_descriptive_name': p_grp['name'],
+                                        'group_description': p_grp['description'],
+                                        'group_logo_url': p_grp['group_logo_url'],
+                                        'group_types': p_grp['group_types'],
+                                        'info_resourceids': p_grp.get('info_resourceids'),
+                                        'other_attributes': other_attributes
+                                    })
+                model.save()
+                self.logger.debug('Group ID={}, created={}'.format(id, created))
+                self.new[id]=model
+                self.GCOUNTERS.update({'Update'})
+            except (DataError, IntegrityError) as e:
+                msg = '{} saving ID={} ({}): {}'.format(type(e).__name__, id, p_grp['group_descriptive_name'], str(e))
+                self.logger.error(msg)
+                return(False, msg)
+
+        for id in self.cur:
+            if id not in self.new:
+                try:
+                    CiderGroups.objects.filter(info_groupid=id).delete()
+                    self.GCOUNTERS.update({'Delete'})
                     self.logger.info('Deleted ID={}'.format(id))
                 except (DataError, IntegrityError) as e:
                     self.logger.error('{} deleting ID={}: {}'.format(type(e).__name__, id, str(e)))
@@ -445,8 +484,8 @@ class Router():
                 return
 
             # If recent database update
-            if 'CIDER_LAST_URL' in self.config and self.config['CIDER_LAST_URL']:
-                ts_json = self.Retrieve_Affiliation_Infrastructure(self.config['CIDER_LAST_URL'])
+            if hasattr(self, 'lasturl'):
+                ts_json = self.Retrieve_CiDeR_by_Affiliation(self.lasturl)
             try:
                 last_db_update = parse_datetime(ts_json['last_update_time'])
                 self.logger.info('Last DB update at {} with last refresh at {}'.format(last_db_update, last_run))
@@ -460,12 +499,13 @@ class Router():
     def Run(self):
         while True:
             loop_start_utc = datetime.now(timezone.utc)
-            self.COUNTERS = Counter()
-            
-            if self.src['scheme'] == 'file':
-                RAW = self.Read_Cache(self.src['path'])
+            self.RCOUNTERS = Counter() # Resource
+            self.GCOUNTERS = Counter() # Group
+
+            if self.srcparsed.scheme == 'file':
+                RAW = self.Read_Cache(self.srcparsed.path)
             else:
-                RAW = self.Retrieve_Infrastructure(self.src['uri'])
+                RAW = self.Retrieve_Infrastructure(self.srcparsed)
 
             if RAW:
                 if self.dest['scheme'] == 'file':
@@ -479,10 +519,16 @@ class Router():
                     pa_about = ','.join(self.AFFILIATIONS)
                     pa_id = '{}:{}:{}'.format(pa_application, pa_function, pa_topic)
                     pa = ProcessingActivity(pa_application, pa_function, pa_id , pa_topic, pa_about)
-                    (rc, warehouse_msg) = self.Warehouse_Info(RAW)
-                
+                    (rc, warehouse_msg) = self.Warehouse_Resources(RAW)
+                    if rc:
+                        if hasattr(self, 'groupsurl'):
+                            RAWGROUPS = self.Retrieve_CiDeR_by_Affiliation(self.groupsurl)
+                            (rc, warehouse_msg) = self.Warehouse_Groups(RAWGROUPS)
+
                 loop_end_utc = datetime.now(timezone.utc)
-                summary_msg = 'Processed in {:.3f}/seconds: {}/updates, {}/deletes, {}/skipped'.format((loop_end_utc - loop_start_utc).total_seconds(), self.COUNTERS['Update'], self.COUNTERS['Delete'], self.COUNTERS['Skip'])
+                summary_msg = 'Processed resources in {:.3f}/seconds: {}/updates, {}/deletes, {}/skipped'.format((loop_end_utc - loop_start_utc).total_seconds(), self.RCOUNTERS['Update'], self.RCOUNTERS['Delete'], self.RCOUNTERS['Skip'])
+                if hasattr(self, 'groupsurl'):
+                    summary_msg = summary_msg + '; {}/group updates'.format(self.GCOUNTERS['Update'])
                 self.logger.info(summary_msg)
                 if self.dest['scheme'] == 'warehouse':
                     if rc:  # No errors
