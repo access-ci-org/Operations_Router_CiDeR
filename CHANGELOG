@@ -1,3 +1,6 @@
+v2.6.0 20241031 JP
+  - Load CiderFeatures model if CIDER_FEATURES_PATH is set
+
 v2.5.0 20241030 JP
   - Load new CiderGroups model from new API
   - Use urlparse for source url parsing, unfortunately destination url uses non-standard scheme 

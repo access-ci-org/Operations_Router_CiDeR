@@ -2,6 +2,7 @@
     "DESTINATION": "warehouse",
     "CIDER_INFO_URL": "https://cider.access-ci.org/xsede-api/provider/rdr/v1/resources",
     "CIDER_LAST_PATH": "/xsede-api/provider/rdr/v1/resources/last_update",
+    "CIDER_FEATURES_PATH": "/xsede-api/provider/rdr/v1/feature_categories",
     "CIDER_GROUPS_PATH": "/xsede-api/provider/rdr/v1/groups",
     "AFFILIATIONS": ["XSEDE", "TACC", "ACCESS"],
     "LOG_FILE": "%APP_HOME%/%APP_NAME%.log",
