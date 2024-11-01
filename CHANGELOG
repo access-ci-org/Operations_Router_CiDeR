@@ -1,3 +1,6 @@
+v2.6.2 20241101 JP
+  - Fix mapping of CiDeR features id to model feature_category_id
+
 v2.6.1 20241101 JP
   - Fix Warehouse_Features primary key bugs
 

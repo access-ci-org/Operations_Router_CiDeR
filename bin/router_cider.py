@@ -406,7 +406,7 @@ class Router():
         self.logger.debug('Retrieved from database {}/feature categories'.format(len(self.cur)))
 
         for p_feat in info_json['feature_categories']:  # Iterating over feature groups
-            id = p_feat['feature_category_id']
+            id = p_feat['id']
             # All the attributes, then remove the ones that have their own field
             other_attributes=p_feat.copy()
             for attrib in self.feature_model_fields:
