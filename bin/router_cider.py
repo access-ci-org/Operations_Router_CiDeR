@@ -402,11 +402,11 @@ class Router():
         self.cur = {}   # Feature categories currently in database
         self.new = {}   # New feature categories in document
         for item in CiderFeatures.objects.all():
-            self.cur[item.id] = item
+            self.cur[item.feature_category_id] = item
         self.logger.debug('Retrieved from database {}/feature categories'.format(len(self.cur)))
 
         for p_feat in info_json['feature_categories']:  # Iterating over feature groups
-            id = p_feat['id']
+            id = p_feat['feature_category_id']
             # All the attributes, then remove the ones that have their own field
             other_attributes=p_feat.copy()
             for attrib in self.feature_model_fields:
@@ -433,7 +433,7 @@ class Router():
         for id in self.cur:
             if id not in self.new:
                 try:
-                    CiderFeatures.objects.filter(feature_category_id=id).delete()
+                    CiderFeatures.objects.get(pk=id).delete()
                     self.FCOUNTERS.update({'Delete'})
                     self.logger.info('Deleted ID={}'.format(id))
                 except (DataError, IntegrityError) as e:

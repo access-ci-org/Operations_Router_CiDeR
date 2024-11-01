@@ -1,3 +1,6 @@
+v2.6.1 20241101 JP
+  - Fix Warehouse_Features primary key bugs
+
 v2.6.0 20241031 JP
   - Load CiderFeatures model if CIDER_FEATURES_PATH is set
 
