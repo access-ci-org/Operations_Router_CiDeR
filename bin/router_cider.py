@@ -170,7 +170,7 @@ class Router():
                         'resource_status', 'current_statuses', 'updated_at']
         self.feature_model_fields = ['id', 'name', 'description',
                         'features']
-        self.group_model_fields = ['info_groupid', 'name', 'description',
+        self.group_model_fields = ['group_id', 'info_groupid', 'name', 'description',
                         'group_logo_url', 'group_types', 'info_resourceids']
 
     def SaveDaemonStdOut(self, path):
@@ -444,11 +444,11 @@ class Router():
         self.cur = {}   # Groups currently in database
         self.new = {}   # New groups in document
         for item in CiderGroups.objects.all():
-            self.cur[item.info_groupid] = item
+            self.cur[item.group_id] = item
         self.logger.debug('Retrieved from database {}/groups'.format(len(self.cur)))
 
         for p_grp in info_json['groups']:  # Iterating over groups
-            id = p_grp['info_groupid']
+            id = p_grp['group_id']
             # All the attributes, then remove the ones that have their own field
             other_attributes=p_grp.copy()
             for attrib in self.group_model_fields:
@@ -456,8 +456,9 @@ class Router():
 
             try:
                 model, created = CiderGroups.objects.update_or_create(
-                                    info_groupid=id,
+                                    group_id=id,
                                     defaults = {
+                                        'info_groupid': p_grp['info_groupid'],
                                         'group_descriptive_name': p_grp['name'],
                                         'group_description': p_grp['description'],
                                         'group_logo_url': p_grp['group_logo_url'],
@@ -477,7 +478,7 @@ class Router():
         for id in self.cur:
             if id not in self.new:
                 try:
-                    CiderGroups.objects.filter(info_groupid=id).delete()
+                    CiderGroups.objects.filter(group_id=id).delete()
                     self.GCOUNTERS.update({'Delete'})
                     self.logger.info('Deleted ID={}'.format(id))
                 except (DataError, IntegrityError) as e:

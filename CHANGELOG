@@ -1,3 +1,6 @@
+v2.7.0 20241105 JP
+  - Change CiderGroups pk to new group_id field, info_groupid becomes a normal index field
+
 v2.6.2 20241101 JP
   - Fix mapping of CiDeR features id to model feature_category_id
 
