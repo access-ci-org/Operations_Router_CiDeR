@@ -1,3 +1,6 @@
+v2.8.0 20241119 JP
+  - Load CiderOrganizations model if CIDER_ORGANIZATIONS_PATH is set
+
 v2.7.0 20241105 JP
   - Change CiderGroups pk to new group_id field, info_groupid becomes a normal index field
 

@@ -147,6 +147,9 @@ class Router():
         if self.srcparsed.scheme in ['http', 'https'] and self.config.get('CIDER_LAST_PATH'):
             self.lasturldisplay = urljoin(urlunparse(self.srcparsed), self.config.get('CIDER_LAST_PATH'))
             self.lasturl = urlparse(self.lasturldisplay)
+        if self.srcparsed.scheme in ['http', 'https'] and self.config.get('CIDER_ORGANIZATIONS_PATH'):
+            self.organizationsurldisplay = urljoin(urlunparse(self.srcparsed), self.config.get('CIDER_ORGANIZATIONS_PATH'))
+            self.organizationsurl = urlparse(self.organizationsurldisplay)
         if self.srcparsed.scheme in ['http', 'https'] and self.config.get('CIDER_FEATURES_PATH'):
             self.featuresurldisplay = urljoin(urlunparse(self.srcparsed), self.config.get('CIDER_FEATURES_PATH'))
             self.featuresurl = urlparse(self.featuresurldisplay)
@@ -157,6 +160,7 @@ class Router():
         self.logger.info('Source: {}'.format(self.srcdisplay))
         self.logger.info('Destination: {}'.format(self.destdisplay))
         if hasattr(self, 'lasturldisplay'): self.logger.info('Last URL: {}'.format(self.lasturldisplay))
+        if hasattr(self, 'organizationsurldisplay'): self.logger.info('Organizations URL: {}'.format(self.organizationsurldisplay))
         if hasattr(self, 'featuresurldisplay'): self.logger.info('Features URL: {}'.format(self.featuresurldisplay))
         if hasattr(self, 'groupsurldisplay'): self.logger.info('Groups URL: {}'.format(self.groupsurldisplay))
         self.logger.info('Config: {}' .format(self.config_file))
@@ -168,6 +172,8 @@ class Router():
                         'resource_descriptive_name', 'resource_description',
                         'project_affiliation', 'provider_level',
                         'resource_status', 'current_statuses', 'updated_at']
+        self.organizations_model_fields = ['organization_id', 'organization_name', 'organization_abbrev',
+                        'organization_url']
         self.feature_model_fields = ['id', 'name', 'description',
                         'features']
         self.group_model_fields = ['group_id', 'info_groupid', 'name', 'description',
@@ -398,6 +404,49 @@ class Router():
                     self.logger.error('{} deleting ID={}: {}'.format(type(e).__name__, id, str(e)))
         return(True, '')
             
+    def Warehouse_Organizations(self, info_json):
+        self.cur = {}   # Organizations currently in database
+        self.new = {}   # New organizations in document
+        for item in CiderOrganizations.objects.all():
+            self.cur[item.organization_id] = item
+        self.logger.debug('Retrieved from database {}/organizations'.format(len(self.cur)))
+
+        for p_org in info_json['organizations']:  # Iterating over feature groups
+            id = p_org['organization_id']
+            # All the attributes, then remove the ones that have their own field
+            other_attributes=p_org.copy()
+            # Let's keep all the original attributes for now
+#            for attrib in self.feature_model_fields:
+#                other_attributes.pop(attrib, None)
+
+            try:
+                model, created = CiderOrganizations.objects.update_or_create(
+                                    organization_id=id,
+                                    defaults = {
+                                        'organization_name': p_org['organization_name'],
+                                        'organization_abbrev': p_org['organization_abbreviation'],
+                                        'organization_url': p_org['organization_url'],
+                                        'other_attributes': other_attributes
+                                    })
+                model.save()
+                self.logger.debug('Organization ID={}, created={}'.format(id, created))
+                self.new[id]=model
+                self.OCOUNTERS.update({'Update'})
+            except (DataError, IntegrityError) as e:
+                msg = '{} saving ID={} ({}): {}'.format(type(e).__name__, id, p_org['organization_abbreviation'], str(e))
+                self.logger.error(msg)
+                return(False, msg)
+
+        for id in self.cur:
+            if id not in self.new:
+                try:
+                    CiderOrganizations.objects.get(pk=id).delete()
+                    self.OCOUNTERS.update({'Delete'})
+                    self.logger.info('Deleted ID={}'.format(id))
+                except (DataError, IntegrityError) as e:
+                    self.logger.error('{} deleting ID={}: {}'.format(type(e).__name__, id, str(e)))
+        return(True, '')
+            
     def Warehouse_Features(self, info_json):
         self.cur = {}   # Feature categories currently in database
         self.new = {}   # New feature categories in document
@@ -544,9 +593,10 @@ class Router():
     def Run(self):
         while True:
             loop_start_utc = datetime.now(timezone.utc)
-            self.RCOUNTERS = Counter() # Resource
-            self.FCOUNTERS = Counter() # Resource
-            self.GCOUNTERS = Counter() # Group            self.GCOUNTERS = Counter() # Group
+            self.RCOUNTERS = Counter() # Resources
+            self.OCOUNTERS = Counter() # Organizations
+            self.FCOUNTERS = Counter() # Features
+            self.GCOUNTERS = Counter() # Groups
 
             if self.srcparsed.scheme == 'file':
                 RAW = self.Read_Cache(self.srcparsed.path)
@@ -566,6 +616,16 @@ class Router():
                     pa_id = '{}:{}:{}'.format(pa_application, pa_function, pa_topic)
                     pa = ProcessingActivity(pa_application, pa_function, pa_id , pa_topic, pa_about)
                     (rc, warehouse_msg) = self.Warehouse_Resources(RAW)
+                    if hasattr(self, 'organizationsurl'):
+                        RAWORGANIZATIONS = self.Retrieve_CiDeR_by_Affiliation(self.organizationsurl)
+                        (rc2, warehouse_msg2) = self.Warehouse_Organizations(RAWORGANIZATIONS)
+                        if rc2:
+                            rc = max(rc, rc2)
+                        if warehouse_msg2:
+                            if warehouse_msg:
+                                warehouse_msg = '; '.join(warehouse_msg, warehouse_msg2)
+                            else:
+                                warehouse_msg = warehouse_msg2
                     if hasattr(self, 'featuresurl'):
                         RAWFEATURES = self.Retrieve_CiDeR_by_Affiliation(self.featuresurl)
                         (rc2, warehouse_msg2) = self.Warehouse_Features(RAWFEATURES)
@@ -589,6 +649,8 @@ class Router():
 
                 loop_end_utc = datetime.now(timezone.utc)
                 summary_msg = 'Processed resources in {:.3f}/seconds: {}/updates, {}/deletes, {}/skipped'.format((loop_end_utc - loop_start_utc).total_seconds(), self.RCOUNTERS['Update'], self.RCOUNTERS['Delete'], self.RCOUNTERS['Skip'])
+                if hasattr(self, 'organizationsurl'):
+                    summary_msg = summary_msg + '; {}/organization updates'.format(self.OCOUNTERS['Update'])
                 if hasattr(self, 'featuresurl'):
                     summary_msg = summary_msg + '; {}/feature group updates'.format(self.FCOUNTERS['Update'])
                 if hasattr(self, 'groupsurl'):
