@@ -5,6 +5,8 @@
     "CIDER_FEATURES_PATH": "/xsede-api/provider/rdr/v1/feature_categories",
     "CIDER_GROUPS_PATH": "/xsede-api/provider/rdr/v1/groups",
     "AFFILIATIONS": ["XSEDE", "TACC", "ACCESS"],
+    "XA-APP": "operations_api",
+    "XA-API-KEY": "{{ CIDER_XA-API-KEY }}",
     "LOG_FILE": "%APP_HOME%/%APP_NAME%.log",
     "LOG_LEVEL": "warning",
     "RUN_DIR": "%APP_HOME%/var",

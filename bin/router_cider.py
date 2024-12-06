@@ -239,6 +239,9 @@ class Router():
         headers = {'Content-type': 'application/json',
                     'XA-CLIENT': affiliation,
                     'XA-KEY-FORMAT': 'underscore'}
+        for h in ('XA-APP', 'XA-API-KEY'):
+            if h in self.config:
+                headers[h] = self.config[h]
 #        ctx = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
 #   2022-10-21 JP - figure out later the appropriate level of ssl verification
         ctx = ssl.create_default_context()
@@ -358,8 +361,12 @@ class Router():
                 p_info_siteid = p_parent_info_resourceid[p_parent_info_resourceid.find('.')+1:]
                 self.logger.error('CiDeR bug for ID={} replacing len(info_siteid)>40 with parent derived "{}"'.format(id, p_info_siteid))
                 
-            # All the attributes, then remove the ones that have their own field
+            # The protected attributes
+            protected_attributes = p_res.get('protected_data')
+
+            # All the attributes, then remove the ones that have their own field or are protected
             other_attributes=p_res.copy()
+            other_attributes.pop('protected_data', None)
             for attrib in self.resource_model_fields:
                 other_attributes.pop(attrib, None)
 
@@ -382,6 +389,7 @@ class Router():
                                         'access_description': p_res.get('access_description'),
                                         'project_affiliation': ','.join(affiliations),
                                         'provider_level': p_res['provider_level'],
+                                        'protected_attributes': protected_attributes,
                                         'other_attributes': other_attributes,
                                         'updated_at': p_res['updated_at']
                                     })

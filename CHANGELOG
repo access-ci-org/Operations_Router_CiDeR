@@ -1,3 +1,6 @@
+v2.9.0 20241206 JP
+  - Load cider resource protected_attributes json field, remove it from other_attributes
+
 v2.8.0 20241119 JP
   - Load CiderOrganizations model if CIDER_ORGANIZATIONS_PATH is set
 
