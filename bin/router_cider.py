@@ -354,6 +354,8 @@ class Router():
                 self.logger.error('CiDeR bug for ID={} replacing len(info_resourceid)>40 with parent "{}"'.format(id, p_parent_info_resourceid))
 
             p_latest_status = self.latest_status(p_res['current_statuses'])
+            p_latest_status_begin = self.latest_status_date(p_res['resource_status'], p_latest_status, 'begin')
+            p_latest_status_end = self.latest_status_date(p_res['resource_status'], p_latest_status, 'end')
             
             p_info_siteid = p_info_resourceid[p_info_resourceid.find('.')+1:]
             #### TEMPORARY JP 2023-11-08 ####
@@ -382,8 +384,8 @@ class Router():
                                         'resource_status': p_res['resource_status'],
                                         'current_statuses': ', '.join(p_res['current_statuses']),
                                         'latest_status': p_latest_status,
-                                        'latest_status_begin': self.latest_status_date(p_res['resource_status'], p_latest_status, 'begin'),
-                                        'latest_status_end': self.latest_status_date(p_res['resource_status'], p_latest_status, 'end'),
+                                        'latest_status_begin': p_latest_status_begin,
+                                        'latest_status_end': p_latest_status_end,
                                         'parent_resource': p_parent_resource_id,
                                         'recommended_use': p_res.get('recommended_use'),
                                         'access_description': p_res.get('access_description'),
@@ -543,7 +545,8 @@ class Router():
         return(True, '')
             
     def latest_status(self, current_statuses):
-        for ordered_status in ['decommissioned', 'retired', 'post_production', 'production', 'pre_production', 'friendly', 'coming_soon']:
+        # The space, underscore, or hyphen punctuation has changed over time, let's handle all of them
+        for ordered_status in ['decommissioned', 'retired', 'post_production', 'post-production', 'production', 'pre_production', 'pre-production', 'friendly', 'coming_soon', 'coming soon']:
             if ordered_status in current_statuses:
                 return(ordered_status)
         if len(current_statuses) > 0:
@@ -553,7 +556,7 @@ class Router():
 
     def latest_status_date(self, resource_status_dates, current_status, which_date):
         # Which should be 'begin' or 'end'
-        fixed_current_status = current_status.replace('-', '_')
+        fixed_current_status = current_status.replace('-', '_').replace(' ', '_')
         key = '{}_{}_date'.format(fixed_current_status, which_date)
         if key not in resource_status_dates or resource_status_dates[key] is None:
             return(None)
