@@ -1,0 +1,26 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+
+        {
+            "name": "Python Debugger: Current File with Arguments",
+            "type": "debugpy",
+            "request": "launch",
+            "python": "${workspaceFolder}/.venv/bin/python3",
+            "program": "${workspaceFolder}/bin/router_cider.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--once", 
+                "-c", "/soft/applications-2.0/router_cider/conf/router_cider.conf",
+            ],
+            "env": {
+                "PYTHONPATH": "/soft/warehouse-2.0/PROD/",
+                "APP_CONFIG": "/soft/applications-2.0/router_cider/conf/django_prod_router.conf",
+                "DJANGO_SETTINGS_MODULE": "Operations_Warehouse_Django.settings"
+            }
+        }
+    ]
+}

@@ -1,0 +1,15 @@
+[project]
+name = "Operations_Router_CiDeR"
+version = "2.9.1"
+description = "ACCESS CONECT Information Sharing Platform CiDeR Router"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "amqp",
+    "django==5.0.*",
+    "django-opensearch-dsl>=0.7.0",
+    "djangorestframework",
+    "pid",
+    "psycopg2-binary",
+    "requests",
+]
