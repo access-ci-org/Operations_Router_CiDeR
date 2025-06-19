@@ -174,7 +174,7 @@ class Router():
                         'resource_status', 'current_statuses', 'updated_at']
         self.organizations_model_fields = ['organization_id', 'organization_name', 'organization_abbrev',
                         'organization_url']
-        self.feature_model_fields = ['id', 'name', 'description',
+        self.feature_model_fields = ['id', 'name', 'description', 'category_types',
                         'features']
         self.group_model_fields = ['group_id', 'info_groupid', 'name', 'description',
                         'group_logo_url', 'group_types', 'info_resourceids']
@@ -477,6 +477,7 @@ class Router():
                                     defaults = {
                                         'feature_category_name': p_feat['name'],
                                         'feature_category_description': p_feat['description'],
+                                        'feature_category_types': p_feat['category_types'],                                        
                                         'features': p_feat['features'],
                                         'other_attributes': other_attributes
                                     })
